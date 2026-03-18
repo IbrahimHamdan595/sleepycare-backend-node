@@ -28,6 +28,10 @@ router.use(getCurrentUser, requireAdmin);
 // POST /admin/products
 router.post('/', upload.single('image'), async (req: Request, res: Response) => {
   try {
+    console.log('=== Product Create Debug ===');
+    console.log('req.body:', JSON.stringify(req.body));
+    console.log('req.file:', req.file ? { name: req.file.originalname, size: req.file.size, mime: req.file.mimetype } : 'NO FILE');
+    console.log('===========================');
     const { name, description, price, stock, category_id, image_base64, image_url } = req.body;
 
     // Validate required fields (FormData sends strings, so check for empty strings too)
