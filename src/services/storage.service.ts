@@ -88,7 +88,6 @@ class R2StorageClient {
           Key: uniqueFilename,
           Body: buffer,
           ContentType: contentType,
-          ACL: 'public-read',
         })
       );
 
