@@ -14,6 +14,8 @@ import adminOrdersRoutes from './admin/orders.routes';
 import adminUsersRoutes from './admin/users.routes';
 import adminPartnersRoutes from './admin/partners.routes';
 import adminUploadRoutes from './admin/upload.routes';
+import adminSettingsRoutes from './admin/settings.routes';
+import settingsRoutes from './settings.routes';
 
 const router = Router();
 
@@ -27,6 +29,8 @@ router.use('/admin/orders', adminOrdersRoutes);
 router.use('/admin/users', adminUsersRoutes);
 router.use('/admin/partners', adminPartnersRoutes);
 router.use('/admin/upload', adminUploadRoutes);
+router.use('/admin/settings', adminSettingsRoutes);
+router.use('/settings', settingsRoutes);
 
 // Public routes
 router.use('/partners', partnersRoutes);

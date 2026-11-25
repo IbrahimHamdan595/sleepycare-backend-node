@@ -129,6 +129,17 @@ model Partner {
   @@map("partners")
 }
 
+// Store-wide money settings, edited by admins. Always a single row (id "default").
+model StoreSettings {
+  id                    String   @id @default("default")
+  deliveryFee           Decimal  @default(9.99) @map("delivery_fee") @db.Decimal(10, 2)
+  freeDeliveryThreshold Decimal  @default(35) @map("free_delivery_threshold") @db.Decimal(10, 2)
+  taxRatePercent        Decimal  @default(8) @map("tax_rate_percent") @db.Decimal(5, 2)
+  updatedAt             DateTime @updatedAt @map("updated_at")
+
+  @@map("store_settings")
+}
+
 model PasswordResetToken {
   id        String   @id @default(cuid())
   userId    String   @map("user_id")

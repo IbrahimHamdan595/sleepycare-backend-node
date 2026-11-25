@@ -16,6 +16,8 @@ import { PartnerRead } from '../schemas/partner.schema';
 import { ProductRead } from '../schemas/product.schema';
 import { TransactionRead } from '../schemas/transaction.schema';
 import { UserRead } from '../schemas/user.schema';
+import { SettingsRead } from '../schemas/settings.schema';
+import type { StoreSettings } from '../services/pricing.service';
 
 // Database rows -> the snake_case JSON shapes the frontend already expects.
 // Money columns are Postgres DECIMALs; the API keeps returning plain numbers.
@@ -24,6 +26,14 @@ const money = (value: Prisma.Decimal): number => value.toNumber();
 
 /** Rounds to cents, to avoid storing float noise such as 0.30000000000000004. */
 export const roundMoney = (value: number): number => Math.round(value * 100) / 100;
+
+export function toSettingsRead(settings: StoreSettings): SettingsRead {
+  return {
+    delivery_fee: settings.deliveryFee,
+    free_delivery_threshold: settings.freeDeliveryThreshold,
+    tax_rate_percent: settings.taxRatePercent,
+  };
+}
 
 export function toUserRead(user: User): UserRead {
   return {
