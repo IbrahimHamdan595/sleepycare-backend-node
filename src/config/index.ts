@@ -3,9 +3,8 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 interface Config {
-  // MongoDB
-  mongodbUri: string;
-  mongodbDb: string;
+  // PostgreSQL (read by Prisma from DATABASE_URL)
+  databaseUrl: string;
 
   // JWT
   jwtSecret: string;
@@ -46,9 +45,8 @@ function getEnvVar(key: string, required: boolean = false): string | null {
 }
 
 export const config: Config = {
-  // MongoDB
-  mongodbUri: getEnvVar('MONGODB_URI', true)!,
-  mongodbDb: getEnvVar('MONGODB_DB') || 'sleepycare',
+  // PostgreSQL
+  databaseUrl: getEnvVar('DATABASE_URL', true)!,
 
   // JWT
   jwtSecret: getEnvVar('JWT_SECRET', true)!,

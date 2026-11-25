@@ -1,0 +1,141 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  user
+  admin
+}
+
+model User {
+  id             String   @id @default(cuid())
+  name           String
+  // Always stored lowercase; the auth service lowercases on write and lookup.
+  email          String   @unique
+  passwordHash   String?  @map("password_hash")
+  role           Role     @default(user)
+  provider       String   @default("local")
+  providerUserId String?  @map("provider_user_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  cartItems      CartItem[]
+  orders         Order[]
+  transactions   Transaction[]
+  passwordResets PasswordResetToken[]
+
+  @@map("users")
+}
+
+model Category {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  icon        String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  products Product[]
+
+  @@map("categories")
+}
+
+model Product {
+  id          String    @id @default(cuid())
+  name        String    @unique
+  description String?
+  price       Decimal   @db.Decimal(10, 2)
+  stock       Int
+  imageUrl    String?   @map("image_url")
+  // Deleting a category leaves its products uncategorised.
+  categoryId  String?   @map("category_id")
+  category    Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  cartItems CartItem[]
+
+  @@index([categoryId])
+  @@map("products")
+}
+
+model CartItem {
+  id        String  @id @default(cuid())
+  userId    String  @map("user_id")
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  productId String  @map("product_id")
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  quantity  Int     @default(1)
+
+  @@unique([userId, productId])
+  @@map("cart_items")
+}
+
+model Order {
+  id          String   @id @default(cuid())
+  userId      String   @map("user_id")
+  user        User     @relation(fields: [userId], references: [id])
+  status      String   @default("pending")
+  totalAmount Decimal  @default(0) @map("total_amount") @db.Decimal(10, 2)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  items        OrderItem[]
+  transactions Transaction[]
+
+  @@index([userId])
+  @@map("orders")
+}
+
+model OrderItem {
+  id        String  @id @default(cuid())
+  orderId   String  @map("order_id")
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  // Kept as a plain column, not a foreign key, so that deleting a product
+  // does not touch past orders (the same behaviour as the MongoDB version).
+  productId String  @map("product_id")
+  quantity  Int
+  unitPrice Decimal @map("unit_price") @db.Decimal(10, 2)
+
+  @@index([orderId])
+  @@index([productId])
+  @@map("order_items")
+}
+
+model Transaction {
+  id            String   @id @default(cuid())
+  orderId       String   @map("order_id")
+  order         Order    @relation(fields: [orderId], references: [id])
+  userId        String   @map("user_id")
+  user          User     @relation(fields: [userId], references: [id])
+  amount        Decimal  @db.Decimal(10, 2)
+  paymentMethod String   @map("payment_method")
+  status        String
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@index([orderId])
+  @@map("transactions")
+}
+
+model Partner {
+  id        String   @id @default(cuid())
+  name      String
+  icon      String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("partners")
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  expiresAt DateTime @map("expires_at")
+  used      Boolean  @default(false)
+
+  @@map("password_reset_tokens")
+}

@@ -1,22 +1,12 @@
 import { Router, Request, Response } from 'express';
-import mongoose from 'mongoose';
 import multer from 'multer';
 import { getCurrentUser, requireAdmin } from '../../middleware/auth.middleware';
-import { Category, ICategory } from '../../models/category.model';
-import { CategoryRead } from '../../schemas/category.schema';
+import { prisma, isUniqueViolation } from '../../database';
 import { r2Client } from '../../services/storage.service';
+import { toCategoryRead } from '../../utils/mappers';
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage() });
-
-function toCategoryRead(category: ICategory): CategoryRead {
-  return {
-    id: category._id.toString(),
-    name: category.name,
-    description: category.description,
-    icon: category.icon,
-  };
-}
 
 // All admin category routes require admin authentication
 router.use(getCurrentUser, requireAdmin);
@@ -30,7 +20,7 @@ router.post('/', upload.single('icon'), async (req: Request, res: Response) => {
       return res.status(422).json({ detail: 'Name is required' });
     }
 
-    const existing = await Category.findOne({ name });
+    const existing = await prisma.category.findUnique({ where: { name } });
     if (existing) {
       return res.status(400).json({ detail: 'Category already exists' });
     }
@@ -58,15 +48,19 @@ router.post('/', upload.single('icon'), async (req: Request, res: Response) => {
       iconUrl = await r2Client.uploadFile(fileContent, `category_${name}.jpg`, contentType);
     }
 
-    const category = new Category({
-      name,
-      description: description || null,
-      icon: iconUrl,
+    const category = await prisma.category.create({
+      data: {
+        name,
+        description: description || null,
+        icon: iconUrl,
+      },
     });
-    await category.save();
 
     return res.status(201).json(toCategoryRead(category));
   } catch (error) {
+    if (isUniqueViolation(error)) {
+      return res.status(400).json({ detail: 'Category already exists' });
+    }
     console.error('Create category error:', error);
     return res.status(500).json({ detail: 'Internal server error' });
   }
@@ -75,7 +69,7 @@ router.post('/', upload.single('icon'), async (req: Request, res: Response) => {
 // GET /admin/categories
 router.get('/', async (req: Request, res: Response) => {
   try {
-    const categories = await Category.find();
+    const categories = await prisma.category.findMany({ orderBy: { createdAt: 'asc' } });
     return res.status(200).json(categories.map(toCategoryRead));
   } catch (error) {
     console.error('List categories error:', error);
@@ -89,11 +83,7 @@ router.put('/:categoryId', upload.single('icon'), async (req: Request, res: Resp
     const { categoryId } = req.params;
     const { name, description, icon_base64 } = req.body;
 
-    if (!mongoose.Types.ObjectId.isValid(categoryId)) {
-      return res.status(400).json({ detail: 'Invalid category ID' });
-    }
-
-    const category = await Category.findById(categoryId);
+    const category = await prisma.category.findUnique({ where: { id: categoryId } });
     if (!category) {
       return res.status(404).json({ detail: 'Category not found' });
     }
@@ -139,9 +129,15 @@ router.put('/:categoryId', upload.single('icon'), async (req: Request, res: Resp
       );
     }
 
-    await category.save();
-    return res.status(200).json(toCategoryRead(category));
+    const updated = await prisma.category.update({
+      where: { id: category.id },
+      data: { name: category.name, description: category.description, icon: category.icon },
+    });
+    return res.status(200).json(toCategoryRead(updated));
   } catch (error) {
+    if (isUniqueViolation(error)) {
+      return res.status(400).json({ detail: 'Category already exists' });
+    }
     console.error('Update category error:', error);
     return res.status(500).json({ detail: 'Internal server error' });
   }
@@ -152,11 +148,7 @@ router.delete('/:categoryId', async (req: Request, res: Response) => {
   try {
     const { categoryId } = req.params;
 
-    if (!mongoose.Types.ObjectId.isValid(categoryId)) {
-      return res.status(400).json({ detail: 'Invalid category ID' });
-    }
-
-    const category = await Category.findById(categoryId);
+    const category = await prisma.category.findUnique({ where: { id: categoryId } });
     if (!category) {
       return res.status(404).json({ detail: 'Category not found' });
     }
@@ -166,7 +158,8 @@ router.delete('/:categoryId', async (req: Request, res: Response) => {
       await r2Client.deleteFile(category.icon);
     }
 
-    await category.deleteOne();
+    // Products in this category become uncategorised (onDelete: SetNull).
+    await prisma.category.delete({ where: { id: category.id } });
     return res.status(204).send();
   } catch (error) {
     console.error('Delete category error:', error);

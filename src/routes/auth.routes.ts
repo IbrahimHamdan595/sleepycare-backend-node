@@ -13,6 +13,7 @@ import {
   createPasswordReset,
   resetPassword,
 } from '../services/auth.service';
+import { toUserRead } from '../utils/mappers';
 
 const router = Router();
 
@@ -98,15 +99,7 @@ router.post(
 
 // GET /auth/me
 router.get('/me', getCurrentUser, async (req: Request, res: Response) => {
-  const user = req.user!;
-  return res.status(200).json({
-    id: user._id.toString(),
-    name: user.name,
-    email: user.email,
-    role: user.role,
-    provider: user.provider,
-    created_at: user.created_at.toISOString(),
-  });
+  return res.status(200).json(toUserRead(req.user!));
 });
 
 export default router;

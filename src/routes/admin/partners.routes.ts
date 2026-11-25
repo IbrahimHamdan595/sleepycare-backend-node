@@ -1,21 +1,11 @@
 import { Router, Request, Response } from 'express';
-import mongoose from 'mongoose';
 import { getCurrentUser, requireAdmin } from '../../middleware/auth.middleware';
 import { validate } from '../../middleware/validate.middleware';
-import { Partner, IPartner } from '../../models/partner.model';
-import { partnerCreateSchema, partnerUpdateSchema, PartnerRead } from '../../schemas/partner.schema';
+import { prisma } from '../../database';
+import { partnerCreateSchema, partnerUpdateSchema } from '../../schemas/partner.schema';
+import { toPartnerRead } from '../../utils/mappers';
 
 const router = Router();
-
-function toPartnerRead(partner: IPartner): PartnerRead {
-  return {
-    id: partner._id.toString(),
-    name: partner.name,
-    icon: partner.icon,
-    created_at: partner.created_at.toISOString(),
-    updated_at: partner.updated_at.toISOString(),
-  };
-}
 
 // All admin partner routes require admin authentication
 router.use(getCurrentUser, requireAdmin);
@@ -23,7 +13,7 @@ router.use(getCurrentUser, requireAdmin);
 // GET /admin/partners
 router.get('/', async (req: Request, res: Response) => {
   try {
-    const partners = await Partner.find();
+    const partners = await prisma.partner.findMany({ orderBy: { createdAt: 'asc' } });
     return res.status(200).json(partners.map(toPartnerRead));
   } catch (error) {
     console.error('List partners error:', error);
@@ -34,13 +24,7 @@ router.get('/', async (req: Request, res: Response) => {
 // GET /admin/partners/:partnerId
 router.get('/:partnerId', async (req: Request, res: Response) => {
   try {
-    const { partnerId } = req.params;
-
-    if (!mongoose.Types.ObjectId.isValid(partnerId)) {
-      return res.status(400).json({ detail: 'Invalid partner ID' });
-    }
-
-    const partner = await Partner.findById(partnerId);
+    const partner = await prisma.partner.findUnique({ where: { id: req.params.partnerId } });
     if (!partner) {
       return res.status(404).json({ detail: 'Partner not found' });
     }
@@ -57,13 +41,7 @@ router.post('/', validate(partnerCreateSchema), async (req: Request, res: Respon
   try {
     const { name, icon } = req.body;
 
-    const partner = new Partner({
-      name,
-      icon,
-      created_at: new Date(),
-      updated_at: new Date(),
-    });
-    await partner.save();
+    const partner = await prisma.partner.create({ data: { name, icon } });
 
     return res.status(201).json(toPartnerRead(partner));
   } catch (error) {
@@ -81,21 +59,17 @@ router.put(
       const { partnerId } = req.params;
       const { name, icon } = req.body;
 
-      if (!mongoose.Types.ObjectId.isValid(partnerId)) {
-        return res.status(400).json({ detail: 'Invalid partner ID' });
-      }
-
-      const partner = await Partner.findById(partnerId);
+      const partner = await prisma.partner.findUnique({ where: { id: partnerId } });
       if (!partner) {
         return res.status(404).json({ detail: 'Partner not found' });
       }
 
-      if (name !== undefined) partner.name = name;
-      if (icon !== undefined) partner.icon = icon;
-      partner.updated_at = new Date();
-
-      await partner.save();
-      return res.status(200).json(toPartnerRead(partner));
+      // updated_at is set automatically (@updatedAt).
+      const updated = await prisma.partner.update({
+        where: { id: partner.id },
+        data: { name, icon },
+      });
+      return res.status(200).json(toPartnerRead(updated));
     } catch (error) {
       console.error('Update partner error:', error);
       return res.status(500).json({ detail: 'Internal server error' });
@@ -106,18 +80,12 @@ router.put(
 // DELETE /admin/partners/:partnerId
 router.delete('/:partnerId', async (req: Request, res: Response) => {
   try {
-    const { partnerId } = req.params;
-
-    if (!mongoose.Types.ObjectId.isValid(partnerId)) {
-      return res.status(400).json({ detail: 'Invalid partner ID' });
-    }
-
-    const partner = await Partner.findById(partnerId);
+    const partner = await prisma.partner.findUnique({ where: { id: req.params.partnerId } });
     if (!partner) {
       return res.status(404).json({ detail: 'Partner not found' });
     }
 
-    await partner.deleteOne();
+    await prisma.partner.delete({ where: { id: partner.id } });
     return res.status(204).send();
   } catch (error) {
     console.error('Delete partner error:', error);

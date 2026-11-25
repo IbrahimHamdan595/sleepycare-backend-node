@@ -1,10 +1,9 @@
 import { Router, Request, Response } from 'express';
-import mongoose from 'mongoose';
 import { getCurrentUser, requireAdmin } from '../../middleware/auth.middleware';
 import { validate } from '../../middleware/validate.middleware';
-import { Order } from '../../models/order.model';
+import { prisma } from '../../database';
 import { orderUpdateStatusSchema } from '../../schemas/order.schema';
-import { toOrderRead } from '../orders.routes';
+import { toOrderRead } from '../../utils/mappers';
 
 const router = Router();
 
@@ -14,7 +13,10 @@ router.use(getCurrentUser, requireAdmin);
 // GET /admin/orders
 router.get('/', async (req: Request, res: Response) => {
   try {
-    const orders = await Order.find();
+    const orders = await prisma.order.findMany({
+      include: { items: { orderBy: { id: 'asc' } } },
+      orderBy: { createdAt: 'asc' },
+    });
     return res.status(200).json(orders.map(toOrderRead));
   } catch (error) {
     console.error('List orders error:', error);
@@ -29,21 +31,19 @@ router.put(
   async (req: Request, res: Response) => {
     try {
       const { orderId } = req.params;
-      const { status } = req.body;
 
-      if (!mongoose.Types.ObjectId.isValid(orderId)) {
-        return res.status(400).json({ detail: 'Invalid order ID' });
-      }
-
-      const order = await Order.findById(orderId);
+      const order = await prisma.order.findUnique({ where: { id: orderId } });
       if (!order) {
         return res.status(404).json({ detail: 'Order not found' });
       }
 
-      order.status = status;
-      await order.save();
+      const updated = await prisma.order.update({
+        where: { id: order.id },
+        data: { status: req.body.status },
+        include: { items: { orderBy: { id: 'asc' } } },
+      });
 
-      return res.status(200).json(toOrderRead(order));
+      return res.status(200).json(toOrderRead(updated));
     } catch (error) {
       console.error('Update order status error:', error);
       return res.status(500).json({ detail: 'Internal server error' });

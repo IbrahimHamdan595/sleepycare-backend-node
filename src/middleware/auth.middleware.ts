@@ -1,14 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { decodeToken } from '../utils/security';
-import { User, IUser } from '../models/user.model';
-
-declare global {
-  namespace Express {
-    interface Request {
-      user?: IUser;
-    }
-  }
-}
+import { prisma } from '../database';
 
 export async function getCurrentUser(
   req: Request,
@@ -33,7 +25,7 @@ export async function getCurrentUser(
       });
     }
 
-    const user = await User.findById(userId);
+    const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user) {
       return res.status(401).json({
         detail: 'Could not validate credentials',

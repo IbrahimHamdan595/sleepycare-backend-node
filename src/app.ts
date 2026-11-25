@@ -73,6 +73,9 @@ async function start() {
   }
 }
 
-start();
+// Only listen when run directly (npm run dev / npm start), not when the tests import the app.
+if (require.main === module) {
+  start();
+}
 
 export default app;

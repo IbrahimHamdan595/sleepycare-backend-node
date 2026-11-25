@@ -1,13 +1,14 @@
 import { z } from 'zod';
+import { MAX_MONEY, MAX_QUANTITY } from './limits';
 
 export const orderItemInSchema = z.object({
   product_id: z.string(),
-  quantity: z.number().int().min(1),
-  unit_price: z.number().min(0),
+  quantity: z.number().int().min(1).max(MAX_QUANTITY),
+  unit_price: z.number().finite().min(0).max(MAX_MONEY),
 });
 
 export const orderCreateSchema = z.object({
-  items: z.array(orderItemInSchema),
+  items: z.array(orderItemInSchema).max(100),
 });
 
 export const orderUpdateStatusSchema = z.object({

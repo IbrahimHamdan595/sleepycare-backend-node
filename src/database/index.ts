@@ -1,19 +1,29 @@
-import mongoose from 'mongoose';
+import { Prisma, PrismaClient } from '@prisma/client';
 import { config } from '../config';
+
+const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
+
+export const prisma =
+  globalForPrisma.prisma ?? new PrismaClient({ datasourceUrl: config.databaseUrl });
+
+if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
 
 export async function connectDatabase(): Promise<void> {
   try {
-    await mongoose.connect(config.mongodbUri, {
-      dbName: config.mongodbDb,
-    });
-    console.log(`Connected to MongoDB database: ${config.mongodbDb}`);
+    await prisma.$connect();
+    console.log('Connected to PostgreSQL');
   } catch (error) {
-    console.error('Failed to connect to MongoDB:', error);
+    console.error('Failed to connect to PostgreSQL:', error);
     process.exit(1);
   }
 }
 
 export async function disconnectDatabase(): Promise<void> {
-  await mongoose.disconnect();
-  console.log('Disconnected from MongoDB');
+  await prisma.$disconnect();
+  console.log('Disconnected from PostgreSQL');
+}
+
+/** True when a write broke a unique constraint (e.g. a duplicate name or email). */
+export function isUniqueViolation(error: unknown): boolean {
+  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
 }
