@@ -6,6 +6,7 @@ import { prisma } from '../database';
 import { orderCreateSchema, OrderCreate } from '../schemas/order.schema';
 import { MAX_MONEY } from '../schemas/limits';
 import { getStoreSettings, quoteOrder } from '../services/pricing.service';
+import { notifyFrontend } from '../services/email.service';
 import { toOrderRead } from '../utils/mappers';
 
 const router = Router();
@@ -95,7 +96,14 @@ router.post('/', validate(orderCreateSchema), async (req: Request, res: Response
       });
     });
 
-    return res.status(201).json(toOrderRead(order));
+    const orderRead = toOrderRead(order);
+    // The confirmation email is built from the saved order, never from browser data.
+    void notifyFrontend('/api/orders/confirmation', {
+      email: req.user!.email,
+      name: req.user!.name,
+      order: orderRead,
+    });
+    return res.status(201).json(orderRead);
   } catch (error) {
     if (error instanceof HttpException) {
       return res.status(error.statusCode).json({ detail: error.detail });

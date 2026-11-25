@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import axios from 'axios';
+import { notifyFrontend } from './email.service';
 import { User } from '@prisma/client';
 import { prisma, isUniqueViolation } from '../database';
 import {
@@ -10,7 +10,6 @@ import {
 } from '../utils/security';
 import { HttpException } from '../middleware/error.middleware';
 import { UserCreate, TokenResponse } from '../schemas/user.schema';
-import { config } from '../config';
 
 export async function registerUser(data: UserCreate): Promise<User> {
   const email = data.email.toLowerCase();
@@ -75,26 +74,10 @@ export async function createPasswordReset(email: string): Promise<void> {
     data: { userId: user.id, token, expiresAt },
   });
 
-  // Build reset link
-  const frontendUrl = config.frontendUrl || 'https://sleepycare.com';
-  const resetLink = `${frontendUrl}/reset-password?token=${token}`;
-
-  // Send email via frontend API
-  try {
-    await axios.post(
-      `${frontendUrl}/api/auth/forgot-password`,
-      {
-        email: user.email,
-        resetToken: token,
-        resetLink,
-        userName: user.name,
-      },
-      { timeout: 30000 }
-    );
-  } catch (error) {
-    // Log error but don't fail the request - token is still created
-    console.error(`Failed to send password reset email to ${user.email}:`, error);
-  }
+  // The frontend builds the link to its own /auth/reset-password page and
+  // sends the email. Not awaited: the reply takes the same time whether or
+  // not the email address has an account.
+  void notifyFrontend('/api/auth/forgot-password', { email: user.email, name: user.name, token });
 }
 
 export async function resetPassword(token: string, newPassword: string): Promise<void> {

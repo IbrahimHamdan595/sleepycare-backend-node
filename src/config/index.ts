@@ -22,8 +22,10 @@ interface Config {
   adminEmail: string | null;
   adminPassword: string | null;
 
-  // Frontend
-  frontendUrl: string | null;
+  // Frontend (it sends the emails and hosts the reset page)
+  frontendUrl: string;
+  // Shared with the frontend so only this backend can trigger its email routes
+  internalApiSecret: string | null;
 
   // Cloudflare R2 Storage
   r2EndpointUrl: string | null;
@@ -65,7 +67,8 @@ export const config: Config = {
   adminPassword: getEnvVar('ADMIN_PASSWORD'),
 
   // Frontend
-  frontendUrl: getEnvVar('FRONTEND_URL'),
+  frontendUrl: getEnvVar('FRONTEND_URL', true)!.replace(/\/+$/, ''),
+  internalApiSecret: getEnvVar('INTERNAL_API_SECRET'),
 
   // Cloudflare R2 Storage
   r2EndpointUrl: getEnvVar('R2_ENDPOINT_URL'),

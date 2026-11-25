@@ -4,7 +4,8 @@ Express + TypeScript API for the SleepyCare shop, using PostgreSQL through Prism
 
 ## Setup
 
-1. Copy `.env.example` to `.env` and set at least `DATABASE_URL` and `JWT_SECRET`.
+1. Copy `.env.example` to `.env` and set at least `DATABASE_URL`, `JWT_SECRET` and `FRONTEND_URL`.
+   Set `INTERNAL_API_SECRET` to the same value as in the frontend, or no emails are sent.
 2. Install and create the tables:
 
    ```bash
