@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { GOVERNORATES, PAYMENT_METHOD } from '../constants';
+import { GOVERNORATES, ORDER_STATUSES, PAYMENT_METHOD } from '../constants';
 import { MAX_QUANTITY } from './limits';
 
 // Prices are never taken from the browser: an old client's `unit_price`
@@ -30,7 +30,7 @@ export const orderCreateSchema = z.object({
 });
 
 export const orderUpdateStatusSchema = z.object({
-  status: z.string(),
+  status: z.enum(ORDER_STATUSES),
 });
 
 export type OrderItemIn = z.infer<typeof orderItemInSchema>;

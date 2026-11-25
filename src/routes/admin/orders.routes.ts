@@ -1,7 +1,9 @@
 import { Router, Request, Response } from 'express';
 import { getCurrentUser, requireAdmin } from '../../middleware/auth.middleware';
 import { validate } from '../../middleware/validate.middleware';
+import { HttpException } from '../../middleware/error.middleware';
 import { prisma } from '../../database';
+import { OrderStatus } from '../../constants';
 import { orderUpdateStatusSchema } from '../../schemas/order.schema';
 import { toOrderRead } from '../../utils/mappers';
 
@@ -31,20 +33,47 @@ router.put(
   async (req: Request, res: Response) => {
     try {
       const { orderId } = req.params;
+      const status: OrderStatus = req.body.status;
 
-      const order = await prisma.order.findUnique({ where: { id: orderId } });
-      if (!order) {
-        return res.status(404).json({ detail: 'Order not found' });
-      }
+      const updated = await prisma.$transaction(async (tx) => {
+        const order = await tx.order.findUnique({ where: { id: orderId }, include: { items: true } });
+        if (!order) {
+          throw new HttpException(404, 'Order not found');
+        }
 
-      const updated = await prisma.order.update({
-        where: { id: order.id },
-        data: { status: req.body.status },
-        include: { items: { orderBy: { id: 'asc' } }, user: { select: { name: true, email: true } } },
+        // Cancelled is final. The check is part of the write, so when two
+        // cancels arrive together only one changes the row and restores stock.
+        const changed = await tx.order.updateMany({
+          where: { id: orderId, status: { not: 'cancelled' } },
+          data: { status },
+        });
+        if (changed.count === 0) {
+          throw new HttpException(409, "Cancelled orders can't be changed");
+        }
+
+        if (status === 'cancelled') {
+          // Products in id order, like checkout, so the two never deadlock.
+          const items = [...order.items].sort((a, b) => a.productId.localeCompare(b.productId));
+          for (const item of items) {
+            // updateMany: a product deleted since the order is simply skipped.
+            await tx.product.updateMany({
+              where: { id: item.productId },
+              data: { stock: { increment: item.quantity } },
+            });
+          }
+        }
+
+        return tx.order.findUniqueOrThrow({
+          where: { id: orderId },
+          include: { items: { orderBy: { id: 'asc' } }, user: { select: { name: true, email: true } } },
+        });
       });
 
       return res.status(200).json(toOrderRead(updated));
     } catch (error) {
+      if (error instanceof HttpException) {
+        return res.status(error.statusCode).json({ detail: error.detail });
+      }
       console.error('Update order status error:', error);
       return res.status(500).json({ detail: 'Internal server error' });
     }
