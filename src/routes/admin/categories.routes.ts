@@ -90,7 +90,7 @@ router.put('/:categoryId', upload.single('icon'), async (req: Request, res: Resp
 
     // Update fields if provided
     if (name) category.name = name;
-    if (description !== undefined) category.description = description;
+    if (description !== undefined) category.description = description || null;
 
     // Handle icon update
     if (req.file) {

@@ -5,7 +5,10 @@ import {
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { v4 as uuidv4 } from 'uuid';
+import { Request } from 'express';
+import multer from 'multer';
 import { config } from '../config';
+import { HttpException } from '../middleware/error.middleware';
 
 class R2StorageClient {
   private client: S3Client | null = null;
@@ -158,3 +161,39 @@ class R2StorageClient {
 }
 
 export const r2Client = new R2StorageClient();
+
+/** Multer for admin image fields: in memory, at most 5 MB. */
+export const imageUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
+
+// Raster images only: an SVG can carry scripts.
+const IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif', 'image/avif'];
+const DATA_URL = /^data:(image\/[a-z0-9.+-]+);base64,([a-z0-9+/=\s]+)$/i;
+
+/**
+ * Uploads the image an admin form sent, either as a file in `fields.file` or as
+ * a `data:` URL in `fields.base64`, and returns its URL. Returns null when the
+ * form carries no new image (an existing image's URL sent back is ignored).
+ */
+export async function imageFromRequest(
+  req: Request,
+  fields: { file: string; base64: string; nameHint: string }
+): Promise<string | null> {
+  if (req.file && req.file.fieldname === fields.file) {
+    if (!IMAGE_TYPES.includes(req.file.mimetype)) {
+      throw new HttpException(422, 'Only image files can be uploaded');
+    }
+    return r2Client.uploadFile(req.file.buffer, req.file.originalname, req.file.mimetype);
+  }
+
+  const value = req.body?.[fields.base64];
+  if (typeof value === 'string' && value.startsWith('data:')) {
+    const match = DATA_URL.exec(value);
+    if (!match || !IMAGE_TYPES.includes(match[1].toLowerCase())) {
+      throw new HttpException(422, 'Only image files can be uploaded');
+    }
+    const type = match[1].toLowerCase();
+    return r2Client.uploadFile(Buffer.from(match[2], 'base64'), `${fields.nameHint}.${type.split('/')[1]}`, type);
+  }
+
+  return null;
+}

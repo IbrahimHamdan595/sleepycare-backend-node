@@ -11,8 +11,11 @@ router.use(getCurrentUser, requireAdmin);
 // GET /admin/users
 router.get('/', async (req: Request, res: Response) => {
   try {
-    const users = await prisma.user.findMany({ orderBy: { createdAt: 'asc' } });
-    return res.status(200).json(users.map(toUserRead));
+    const users = await prisma.user.findMany({
+      orderBy: { createdAt: 'asc' },
+      include: { _count: { select: { orders: true } } },
+    });
+    return res.status(200).json(users.map((user) => ({ ...toUserRead(user), orders_count: user._count.orders })));
   } catch (error) {
     console.error('List users error:', error);
     return res.status(500).json({ detail: 'Internal server error' });
@@ -30,18 +33,6 @@ router.get('/:userId', async (req: Request, res: Response) => {
     return res.status(200).json(toUserRead(user));
   } catch (error) {
     console.error('Get user error:', error);
-    return res.status(500).json({ detail: 'Internal server error' });
-  }
-});
-
-// GET /admin/users/:userId/orders-count
-router.get('/:userId/orders-count', async (req: Request, res: Response) => {
-  try {
-    const { userId } = req.params;
-    const count = await prisma.order.count({ where: { userId } });
-    return res.status(200).json({ user_id: userId, orders_count: count });
-  } catch (error) {
-    console.error('Get user orders count error:', error);
     return res.status(500).json({ detail: 'Internal server error' });
   }
 });

@@ -314,9 +314,9 @@ describe('orders', () => {
       .set(adminAuth)
       .send({ status: 'shipped' });
     expect(shipped.body.status).toBe('shipped');
-    const count = await api.get(`/admin/users/${order.body.user_id}/orders-count`).set(adminAuth);
-    expect(count.body).toEqual({ user_id: order.body.user_id, orders_count: 1 });
-    expect((await api.get('/admin/users').set(adminAuth)).body).toHaveLength(2);
+    const users = (await api.get('/admin/users').set(adminAuth)).body;
+    expect(users).toHaveLength(2);
+    expect(users.find((u: { id: string }) => u.id === order.body.user_id).orders_count).toBe(1);
   });
 
   it('takes no stock at all when one item is short', async () => {

@@ -21,6 +21,12 @@ export function errorHandler(
     return res.status(err.statusCode).json({ detail: err.detail });
   }
 
+  // Upload problems (multer): a file over the size limit, an unexpected field.
+  if (err.name === 'MulterError') {
+    const tooLarge = (err as { code?: string }).code === 'LIMIT_FILE_SIZE';
+    return res.status(tooLarge ? 413 : 400).json({ detail: tooLarge ? 'Images can be at most 5 MB' : err.message });
+  }
+
   // Errors from Express's own parts carry a 4xx status: broken JSON (400),
   // a body that is too large (413), a blocked CORS origin (403).
   const status = (err as { status?: number; statusCode?: number }).status ?? (err as { statusCode?: number }).statusCode;

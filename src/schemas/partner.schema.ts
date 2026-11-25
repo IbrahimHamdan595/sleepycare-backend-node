@@ -1,12 +1,13 @@
 import { z } from 'zod';
 
+// The icon is an uploaded logo's URL, or text the admin typed: an emoji or an https link.
 export const partnerCreateSchema = z.object({
-  name: z.string().min(1),
-  icon: z.string().min(1),
+  name: z.string().trim().min(1, 'Name is required').max(100),
+  icon: z.string({ required_error: 'An icon or logo is required' }).min(1),
 });
 
 export const partnerUpdateSchema = z.object({
-  name: z.string().min(1).optional(),
+  name: z.string().trim().min(1).max(100).optional(),
   icon: z.string().min(1).optional(),
 });
 
