@@ -2,12 +2,13 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { config } from '../config';
 
-export function getPasswordHash(password: string): string {
-  return bcrypt.hashSync(password, 10);
+// Async versions: the sync ones block every other request for ~100 ms each.
+export function getPasswordHash(password: string): Promise<string> {
+  return bcrypt.hash(password, 10);
 }
 
-export function verifyPassword(password: string, hashedPassword: string): boolean {
-  return bcrypt.compareSync(password, hashedPassword);
+export function verifyPassword(password: string, hashedPassword: string): Promise<boolean> {
+  return bcrypt.compare(password, hashedPassword);
 }
 
 interface TokenPayload {

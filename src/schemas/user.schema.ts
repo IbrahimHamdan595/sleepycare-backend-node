@@ -6,6 +6,12 @@ export const userCreateSchema = z.object({
   password: z.string().min(6),
 });
 
+// POST /auth/login is an OAuth2-style form: the email arrives as `username`.
+export const loginFormSchema = z.object({
+  username: z.string().min(1),
+  password: z.string().min(1),
+});
+
 export const userLoginSchema = z.object({
   email: z.string().email(),
   password: z.string(),

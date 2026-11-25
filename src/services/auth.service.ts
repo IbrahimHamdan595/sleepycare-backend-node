@@ -23,7 +23,7 @@ export async function registerUser(data: UserCreate): Promise<User> {
       data: {
         name: data.name,
         email,
-        passwordHash: getPasswordHash(data.password),
+        passwordHash: await getPasswordHash(data.password),
         role: 'user',
         provider: 'local',
       },
@@ -43,7 +43,7 @@ export async function authenticateUser(email: string, password: string): Promise
     throw new HttpException(400, 'Invalid credentials');
   }
 
-  if (!verifyPassword(password, user.passwordHash)) {
+  if (!(await verifyPassword(password, user.passwordHash))) {
     throw new HttpException(400, 'Invalid credentials');
   }
 
@@ -91,7 +91,7 @@ export async function resetPassword(token: string, newPassword: string): Promise
   }
 
   // Hash first: bcrypt is slow and shouldn't run while the transaction is open.
-  const passwordHash = getPasswordHash(newPassword);
+  const passwordHash = await getPasswordHash(newPassword);
 
   // Mark the token used only if it is still unused, so two requests with the
   // same token cannot both succeed; the password changes in the same transaction.

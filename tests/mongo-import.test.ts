@@ -7,6 +7,8 @@ import { createAccessToken, getPasswordHash } from '../src/utils/security';
 import { MongoCollections, transformMongoData, writeImportPlan } from '../prisma/mongo-import';
 import { resetDatabase } from './helpers';
 
+const SECRET1_HASH = await getPasswordHash('secret1');
+
 // The one-off copy of the live MongoDB data into Postgres.
 // Documents below have the shapes the FastAPI and Mongoose backends wrote.
 
@@ -21,7 +23,7 @@ const empty = (): MongoCollections => ({
 });
 
 function shop() {
-  const user = { _id: new ObjectId(), name: 'Rana', email: 'Rana@Test.dev', password_hash: getPasswordHash('secret1'), role: 'user', provider: 'local', created_at: new Date('2025-12-01T10:00:00Z') };
+  const user = { _id: new ObjectId(), name: 'Rana', email: 'Rana@Test.dev', password_hash: SECRET1_HASH, role: 'user', provider: 'local', created_at: new Date('2025-12-01T10:00:00Z') };
   const category = { _id: new ObjectId(), name: 'Wipes', description: null, icon: null };
   const product = { _id: new ObjectId(), name: 'Baby Wipes', description: 'Soft', price: 4.5, stock: 10, image_url: null, category_id: category._id };
   const order = {

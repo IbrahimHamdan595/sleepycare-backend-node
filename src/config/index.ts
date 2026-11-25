@@ -36,6 +36,8 @@ interface Config {
 
   // Server
   port: number;
+  // Login, sign-up and password-reset attempts allowed per address every 15 minutes
+  authRateLimitMax: number;
 }
 
 function getEnvVar(key: string, required: boolean = false): string | null {
@@ -79,4 +81,5 @@ export const config: Config = {
 
   // Server
   port: parseInt(getEnvVar('PORT') || '8000', 10),
+  authRateLimitMax: parseInt(getEnvVar('AUTH_RATE_LIMIT_MAX') || '10', 10),
 };

@@ -1,8 +1,10 @@
 import { Router, Request, Response } from 'express';
 import { validate } from '../middleware/validate.middleware';
 import { getCurrentUser } from '../middleware/auth.middleware';
+import { authLimiter } from '../middleware/rate-limit';
 import {
   userCreateSchema,
+  loginFormSchema,
   forgotPasswordSchema,
   resetPasswordSchema,
 } from '../schemas/user.schema';
@@ -18,7 +20,7 @@ import { toUserRead } from '../utils/mappers';
 const router = Router();
 
 // POST /auth/register
-router.post('/register', validate(userCreateSchema), async (req: Request, res: Response) => {
+router.post('/register', authLimiter, validate(userCreateSchema), async (req: Request, res: Response) => {
   try {
     const user = await registerUser(req.body);
     const tokens = generateTokensForUser(user);
@@ -33,12 +35,9 @@ router.post('/register', validate(userCreateSchema), async (req: Request, res: R
 });
 
 // POST /auth/login (expects form data with username and password)
-router.post('/login', async (req: Request, res: Response) => {
+router.post('/login', authLimiter, validate(loginFormSchema), async (req: Request, res: Response) => {
   try {
     const { username, password } = req.body; // username is actually email
-    if (!username || !password) {
-      return res.status(422).json({ detail: 'Missing username or password' });
-    }
     const user = await authenticateUser(username, password);
     const tokens = generateTokensForUser(user);
     return res.status(200).json(tokens);
@@ -64,6 +63,7 @@ router.post('/apple', async (req: Request, res: Response) => {
 // POST /auth/forgot-password
 router.post(
   '/forgot-password',
+  authLimiter,
   validate(forgotPasswordSchema),
   async (req: Request, res: Response) => {
     try {
@@ -82,6 +82,7 @@ router.post(
 // POST /auth/reset-password
 router.post(
   '/reset-password',
+  authLimiter,
   validate(resetPasswordSchema),
   async (req: Request, res: Response) => {
     try {

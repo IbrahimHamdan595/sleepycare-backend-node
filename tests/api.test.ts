@@ -16,7 +16,7 @@ async function adminToken(): Promise<string> {
     data: {
       name: 'Admin',
       email: 'admin@test.dev',
-      passwordHash: getPasswordHash('admin-pass'),
+      passwordHash: await getPasswordHash('admin-pass'),
       role: 'admin',
     },
   });

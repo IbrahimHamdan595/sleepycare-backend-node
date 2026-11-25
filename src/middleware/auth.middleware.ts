@@ -14,30 +14,31 @@ export async function getCurrentUser(
     });
   }
 
+  // Only a bad or expired token means "not logged in" (401). A database error
+  // is a server problem (500): answering 401 would make the site log everyone out.
+  let userId: string | undefined;
   try {
-    const token = authHeader.substring(7);
-    const payload = decodeToken(token, 'access');
-    const userId = payload.sub;
+    userId = decodeToken(authHeader.substring(7), 'access').sub;
+  } catch {
+    userId = undefined;
+  }
+  if (!userId) {
+    return res.status(401).json({
+      detail: 'Could not validate credentials',
+    });
+  }
 
-    if (!userId) {
-      return res.status(401).json({
-        detail: 'Could not validate credentials',
-      });
-    }
-
+  try {
     const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user) {
       return res.status(401).json({
         detail: 'Could not validate credentials',
       });
     }
-
     req.user = user;
     next();
   } catch (error) {
-    return res.status(401).json({
-      detail: 'Could not validate credentials',
-    });
+    next(error);
   }
 }
 

@@ -31,7 +31,7 @@ async function main() {
     data: {
       name: 'Admin',
       email,
-      passwordHash: getPasswordHash(password),
+      passwordHash: await getPasswordHash(password),
       role: 'admin',
       provider: 'local',
     },

@@ -7,6 +7,10 @@ import router from './routes';
 
 const app = express();
 
+// Render (and most hosts) put one proxy in front of the app; trust it so
+// rate limits see each visitor's real address instead of the proxy's.
+app.set('trust proxy', 1);
+
 // CORS configuration matching FastAPI
 const corsOptions: cors.CorsOptions = {
   origin: (origin, callback) => {
@@ -34,7 +38,7 @@ const corsOptions: cors.CorsOptions = {
       return callback(null, true);
     }
 
-    callback(new Error('Not allowed by CORS'));
+    callback(Object.assign(new Error('Not allowed by CORS'), { status: 403 }));
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
