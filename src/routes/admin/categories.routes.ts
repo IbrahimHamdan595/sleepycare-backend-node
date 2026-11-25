@@ -1,169 +1,120 @@
-import { Router, Request, Response } from 'express';
-import multer from 'multer';
+import { Router, Request, Response, NextFunction } from 'express';
 import { getCurrentUser, requireAdmin } from '../../middleware/auth.middleware';
+import { HttpException } from '../../middleware/error.middleware';
 import { prisma, isUniqueViolation } from '../../database';
-import { r2Client } from '../../services/storage.service';
+import { imageFromRequest, imageUpload, r2Client } from '../../services/storage.service';
 import { toCategoryRead } from '../../utils/mappers';
 
 const router = Router();
-const upload = multer({ storage: multer.memoryStorage() });
+
+function handleError(error: unknown, res: Response, next: NextFunction) {
+  if (error instanceof HttpException) {
+    return res.status(error.statusCode).json({ detail: error.detail });
+  }
+  if (isUniqueViolation(error)) {
+    return res.status(400).json({ detail: 'Category already exists' });
+  }
+  next(error);
+}
+
+const textField = (value: unknown) => (typeof value === 'string' ? value.trim() : undefined);
 
 // All admin category routes require admin authentication
 router.use(getCurrentUser, requireAdmin);
 
-// POST /admin/categories
-router.post('/', upload.single('icon'), async (req: Request, res: Response) => {
+// POST /admin/categories (multipart form: name, description, icon file or icon_base64)
+router.post('/', imageUpload.single('icon'), async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { name, description, icon_base64 } = req.body;
-
+    const name = textField(req.body.name);
     if (!name) {
       return res.status(422).json({ detail: 'Name is required' });
     }
-
-    const existing = await prisma.category.findUnique({ where: { name } });
-    if (existing) {
+    if (await prisma.category.findUnique({ where: { name } })) {
       return res.status(400).json({ detail: 'Category already exists' });
     }
 
-    let iconUrl: string | null = null;
-
-    // Handle file upload
-    if (req.file) {
-      const contentType = req.file.mimetype || 'image/jpeg';
-      iconUrl = await r2Client.uploadFile(req.file.buffer, req.file.originalname, contentType);
-    } else if (icon_base64) {
-      // Handle base64 upload
-      let encoded = icon_base64;
-      let contentType = 'image/jpeg';
-
-      if (icon_base64.includes(',')) {
-        const [header, data] = icon_base64.split(',', 2);
-        encoded = data;
-        if (header.includes('image/')) {
-          contentType = header.split(';')[0].split(':')[1];
-        }
-      }
-
-      const fileContent = Buffer.from(encoded, 'base64');
-      iconUrl = await r2Client.uploadFile(fileContent, `category_${name}.jpg`, contentType);
+    const icon = await imageFromRequest(req, { file: 'icon', base64: 'icon_base64', nameHint: `category_${name}` });
+    try {
+      const category = await prisma.category.create({
+        data: { name, description: textField(req.body.description) || null, icon },
+      });
+      return res.status(201).json(toCategoryRead(category));
+    } catch (error) {
+      if (icon) await r2Client.deleteFile(icon);
+      throw error;
     }
-
-    const category = await prisma.category.create({
-      data: {
-        name,
-        description: description || null,
-        icon: iconUrl,
-      },
-    });
-
-    return res.status(201).json(toCategoryRead(category));
   } catch (error) {
-    if (isUniqueViolation(error)) {
-      return res.status(400).json({ detail: 'Category already exists' });
-    }
-    console.error('Create category error:', error);
-    return res.status(500).json({ detail: 'Internal server error' });
+    handleError(error, res, next);
   }
 });
 
 // GET /admin/categories
-router.get('/', async (req: Request, res: Response) => {
+router.get('/', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const categories = await prisma.category.findMany({ orderBy: { createdAt: 'asc' } });
     return res.status(200).json(categories.map(toCategoryRead));
   } catch (error) {
-    console.error('List categories error:', error);
-    return res.status(500).json({ detail: 'Internal server error' });
+    next(error);
   }
 });
 
-// PUT /admin/categories/:categoryId
-router.put('/:categoryId', upload.single('icon'), async (req: Request, res: Response) => {
+// PUT /admin/categories/:categoryId (fields left out stay as they are)
+router.put('/:categoryId', imageUpload.single('icon'), async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { categoryId } = req.params;
-    const { name, description, icon_base64 } = req.body;
-
-    const category = await prisma.category.findUnique({ where: { id: categoryId } });
+    const category = await prisma.category.findUnique({ where: { id: req.params.categoryId } });
     if (!category) {
       return res.status(404).json({ detail: 'Category not found' });
     }
 
-    // Update fields if provided
-    if (name) category.name = name;
-    if (description !== undefined) category.description = description || null;
+    const name = textField(req.body.name);
+    const description = textField(req.body.description);
+    // Only a new upload replaces the icon; the edit form sending back the
+    // current icon's link is ignored.
+    const uploaded = await imageFromRequest(req, {
+      file: 'icon',
+      base64: 'icon_base64',
+      nameHint: `category_${name || category.name}`,
+    });
 
-    // Handle icon update
-    if (req.file) {
-      // Delete old icon if exists
-      if (category.icon) {
-        await r2Client.deleteFile(category.icon);
-      }
-      const contentType = req.file.mimetype || 'image/jpeg';
-      category.icon = await r2Client.uploadFile(
-        req.file.buffer,
-        req.file.originalname,
-        contentType
-      );
-    } else if (icon_base64) {
-      // Delete old icon if exists
-      if (category.icon) {
-        await r2Client.deleteFile(category.icon);
-      }
-
-      let encoded = icon_base64;
-      let contentType = 'image/jpeg';
-
-      if (icon_base64.includes(',')) {
-        const [header, data] = icon_base64.split(',', 2);
-        encoded = data;
-        if (header.includes('image/')) {
-          contentType = header.split(';')[0].split(':')[1];
-        }
-      }
-
-      const fileContent = Buffer.from(encoded, 'base64');
-      category.icon = await r2Client.uploadFile(
-        fileContent,
-        `category_${category.name}.jpg`,
-        contentType
-      );
+    // Save first; the old icon is deleted only once nothing points at it.
+    let updated;
+    try {
+      updated = await prisma.category.update({
+        where: { id: category.id },
+        data: {
+          name: name || undefined,
+          description: description === undefined ? undefined : description || null,
+          icon: uploaded ?? undefined,
+        },
+      });
+    } catch (error) {
+      if (uploaded) await r2Client.deleteFile(uploaded);
+      throw error;
+    }
+    if (uploaded && category.icon) {
+      await r2Client.deleteFile(category.icon);
     }
 
-    const updated = await prisma.category.update({
-      where: { id: category.id },
-      data: { name: category.name, description: category.description, icon: category.icon },
-    });
     return res.status(200).json(toCategoryRead(updated));
   } catch (error) {
-    if (isUniqueViolation(error)) {
-      return res.status(400).json({ detail: 'Category already exists' });
-    }
-    console.error('Update category error:', error);
-    return res.status(500).json({ detail: 'Internal server error' });
+    handleError(error, res, next);
   }
 });
 
 // DELETE /admin/categories/:categoryId
-router.delete('/:categoryId', async (req: Request, res: Response) => {
+router.delete('/:categoryId', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { categoryId } = req.params;
-
-    const category = await prisma.category.findUnique({ where: { id: categoryId } });
+    const category = await prisma.category.findUnique({ where: { id: req.params.categoryId } });
     if (!category) {
       return res.status(404).json({ detail: 'Category not found' });
     }
 
-    // Delete icon from R2 if exists
-    if (category.icon) {
-      await r2Client.deleteFile(category.icon);
-    }
-
     // Products in this category become uncategorised (onDelete: SetNull).
     await prisma.category.delete({ where: { id: category.id } });
+    if (category.icon) await r2Client.deleteFile(category.icon);
     return res.status(204).send();
   } catch (error) {
-    console.error('Delete category error:', error);
-    return res.status(500).json({ detail: 'Internal server error' });
+    next(error);
   }
 });
 

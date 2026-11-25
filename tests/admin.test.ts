@@ -129,6 +129,52 @@ describe('admin products and categories', () => {
     expect(deleted).toHaveBeenCalledWith('https://cdn.test/wipes.png');
   });
 
+  it('keep a category icon when the update fails, and delete the old one after a successful change', async () => {
+    const auth = { Authorization: `Bearer ${await adminToken()}` };
+    const cat = await api.post('/admin/categories').set(auth).field('name', 'Wipes').field('icon_base64', PNG_DATA_URL);
+    await api.post('/admin/categories').set(auth).field('name', 'Taken');
+    const oldIcon = cat.body.icon;
+    let savedWhenDeleted: string | null | undefined;
+    const deleted = vi.spyOn(r2Client, 'deleteFile').mockImplementation(async () => {
+      savedWhenDeleted = (await prisma.category.findUniqueOrThrow({ where: { id: cat.body.id } })).icon;
+      return true;
+    });
+
+    const failed = await api
+      .put(`/admin/categories/${cat.body.id}`)
+      .set(auth)
+      .field('name', 'Taken')
+      .field('icon_base64', 'data:image/png;base64,AAAA');
+    expect(failed.status).toBe(400);
+    expect(deleted).not.toHaveBeenCalledWith(oldIcon);
+
+    deleted.mockClear();
+    const changed = await api.put(`/admin/categories/${cat.body.id}`).set(auth).field('icon_base64', 'data:image/png;base64,BBBB');
+    expect(changed.status).toBe(200);
+    expect(deleted).toHaveBeenCalledWith(oldIcon);
+    expect(savedWhenDeleted).toBe(changed.body.icon);
+  });
+
+  it('ignore an existing icon link sent back by the edit form', async () => {
+    const auth = { Authorization: `Bearer ${await adminToken()}` };
+    const cat = await api.post('/admin/categories').set(auth).field('name', 'Wipes').field('icon_base64', PNG_DATA_URL);
+    const res = await api.put(`/admin/categories/${cat.body.id}`).set(auth).field('name', 'Baby wipes').field('icon_base64', cat.body.icon.startsWith('data:') ? 'https://cdn.test/existing.png' : cat.body.icon);
+    expect(res.status).toBe(200);
+    expect(res.body.icon).toBe(cat.body.icon);
+  });
+
+  it('delete a category icon after the category is gone', async () => {
+    const auth = { Authorization: `Bearer ${await adminToken()}` };
+    const cat = await api.post('/admin/categories').set(auth).field('name', 'Wipes').field('icon_base64', PNG_DATA_URL);
+    let rowsWhenDeleted = -1;
+    vi.spyOn(r2Client, 'deleteFile').mockImplementation(async () => {
+      rowsWhenDeleted = await prisma.category.count();
+      return true;
+    });
+    expect((await api.delete(`/admin/categories/${cat.body.id}`).set(auth)).status).toBe(204);
+    expect(rowsWhenDeleted).toBe(0);
+  });
+
   it('store an emptied category description as empty, not as ""', async () => {
     const auth = { Authorization: `Bearer ${await adminToken()}` };
     const cat = await api.post('/admin/categories').set(auth).field('name', 'Wipes').field('description', 'Soft');

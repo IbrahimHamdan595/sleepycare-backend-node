@@ -10,6 +10,31 @@ import multer from 'multer';
 import { config } from '../config';
 import { HttpException } from '../middleware/error.middleware';
 
+type R2Settings = Pick<
+  typeof config,
+  'r2EndpointUrl' | 'r2AccessKeyId' | 'r2SecretAccessKey' | 'r2BucketName' | 'r2PublicUrl'
+>;
+
+const R2_SETTINGS: [keyof R2Settings, string][] = [
+  ['r2EndpointUrl', 'R2_ENDPOINT_URL'],
+  ['r2AccessKeyId', 'R2_ACCESS_KEY_ID'],
+  ['r2SecretAccessKey', 'R2_SECRET_ACCESS_KEY'],
+  ['r2BucketName', 'R2_BUCKET_NAME'],
+  ['r2PublicUrl', 'R2_PUBLIC_URL'],
+];
+
+/**
+ * In production every R2 setting must be present: without them images would
+ * silently be stored inside the database and make every product page heavy.
+ * Elsewhere (local development, tests) they are optional.
+ */
+export function assertStorageConfigured(settings: R2Settings, nodeEnv: string | undefined): void {
+  const missing = R2_SETTINGS.filter(([key]) => !settings[key]).map(([, name]) => name);
+  if (nodeEnv === 'production' && missing.length > 0) {
+    throw new Error(`Image storage is not configured. Set ${missing.join(', ')}.`);
+  }
+}
+
 class R2StorageClient {
   private client: S3Client | null = null;
   private r2Enabled: boolean;
@@ -17,13 +42,14 @@ class R2StorageClient {
   private publicUrl: string | null;
 
   constructor() {
+    assertStorageConfigured(config, process.env.NODE_ENV);
     this.r2Enabled = this.checkR2Config();
     this.bucketName = config.r2BucketName;
     this.publicUrl = config.r2PublicUrl;
 
     console.log(
       `R2 Storage Configuration Status: ${
-        this.r2Enabled ? 'Enabled' : 'Disabled (using base64 fallback)'
+        this.r2Enabled ? 'Enabled' : 'Disabled (development: images are stored in the database)'
       }`
     );
 
@@ -48,25 +74,7 @@ class R2StorageClient {
   }
 
   private checkR2Config(): boolean {
-    const endpoint = config.r2EndpointUrl;
-    const accessKey = config.r2AccessKeyId;
-    const secretKey = config.r2SecretAccessKey;
-    const bucketName = config.r2BucketName;
-    const publicUrl = config.r2PublicUrl;
-
-    if (!endpoint || !accessKey || !secretKey || !bucketName || !publicUrl) {
-      console.log(
-        `R2 config incomplete - Endpoint: ${!!endpoint}, AccessKey: ${!!accessKey}, SecretKey: ${!!secretKey}, Bucket: ${!!bucketName}, PublicURL: ${!!publicUrl}`
-      );
-      return false;
-    }
-
-    if (accessKey.includes('your_r2_access_key') || secretKey.includes('your_r2_secret')) {
-      console.log('R2 config contains placeholder values');
-      return false;
-    }
-
-    return true;
+    return R2_SETTINGS.every(([key]) => Boolean(config[key]));
   }
 
   async uploadFile(
@@ -75,8 +83,7 @@ class R2StorageClient {
     contentType: string = 'image/jpeg'
   ): Promise<string> {
     if (!this.r2Enabled) {
-      // Fallback: return base64 data URL
-      console.log('R2 not enabled, falling back to base64 encoding');
+      // Development only (production requires R2): keep the image as a data URL.
       const base64Data = buffer.toString('base64');
       return `data:${contentType};base64,${base64Data}`;
     }
