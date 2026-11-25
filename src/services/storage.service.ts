@@ -3,8 +3,7 @@ import {
   PutObjectCommand,
   DeleteObjectCommand,
 } from '@aws-sdk/client-s3';
-import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'crypto';
 import { Request } from 'express';
 import multer from 'multer';
 import { config } from '../config';
@@ -90,7 +89,7 @@ class R2StorageClient {
 
     try {
       const ext = filename.split('.').pop() || 'jpg';
-      const uniqueFilename = `${uuidv4()}.${ext}`;
+      const uniqueFilename = `${randomUUID()}.${ext}`;
 
       await this.client!.send(
         new PutObjectCommand({
@@ -130,41 +129,6 @@ class R2StorageClient {
     }
   }
 
-  async generatePresignedUrl(
-    filename: string,
-    contentType: string = 'image/jpeg',
-    expiresIn: number = 3600
-  ): Promise<{ upload_url: string; file_url: string; key: string }> {
-    if (!this.r2Enabled || !this.client) {
-      throw new Error('R2 storage is not configured');
-    }
-
-    try {
-      const ext = filename.split('.').pop() || 'jpg';
-      const uniqueFilename = `${uuidv4()}.${ext}`;
-
-      const command = new PutObjectCommand({
-        Bucket: this.bucketName!,
-        Key: uniqueFilename,
-        ContentType: contentType,
-      });
-
-      const uploadUrl = await getSignedUrl(this.client, command, { expiresIn });
-
-      return {
-        upload_url: uploadUrl,
-        file_url: `${this.publicUrl}/${uniqueFilename}`,
-        key: uniqueFilename,
-      };
-    } catch (error) {
-      console.error('Failed to generate presigned URL:', error);
-      throw new Error(`Failed to generate presigned URL: ${error}`);
-    }
-  }
-
-  isEnabled(): boolean {
-    return this.r2Enabled;
-  }
 }
 
 export const r2Client = new R2StorageClient();

@@ -15,13 +15,13 @@ const COLLECTIONS: Record<keyof MongoCollections, string> = {
   users: 'users',
   categories: 'categories',
   products: 'products',
-  carts: 'carts',
   orders: 'orders',
   transactions: 'transactions',
   partners: 'partners',
 };
-// Deliberately not copied: reset links expire after an hour anyway.
-const SKIPPED = ['password_reset_tokens'];
+// Deliberately not copied: reset links expire after an hour, and carts now
+// live in the shopper's browser.
+const SKIPPED = ['password_reset_tokens', 'carts'];
 
 async function main() {
   const dryRun = process.argv.includes('--dry-run');
@@ -53,7 +53,7 @@ async function main() {
       console.log(`  ${name.padEnd(14)} ${data[key].length}`);
     }
     console.log('\nRows for Postgres:');
-    for (const key of ['users', 'categories', 'products', 'cartItems', 'orders', 'orderItems', 'transactions', 'partners'] as const) {
+    for (const key of ['users', 'categories', 'products', 'orders', 'orderItems', 'transactions', 'partners'] as const) {
       console.log(`  ${key.padEnd(14)} ${plan[key].length}`);
     }
     if (plan.notes.length > 0) {

@@ -1,5 +1,4 @@
 import {
-  CartItem,
   Category,
   Order,
   OrderItem,
@@ -8,7 +7,6 @@ import {
   Product,
   User,
 } from '@prisma/client';
-import { CartItemRead } from '../schemas/cart.schema';
 import { CategoryRead } from '../schemas/category.schema';
 import { OrderRead } from '../schemas/order.schema';
 import { PartnerRead } from '../schemas/partner.schema';
@@ -72,15 +70,6 @@ export function toPartnerRead(partner: Partner): PartnerRead {
     icon: partner.icon,
     created_at: partner.createdAt.toISOString(),
     updated_at: partner.updatedAt.toISOString(),
-  };
-}
-
-export function toCartRead(item: CartItem): CartItemRead {
-  return {
-    id: item.id,
-    user_id: item.userId,
-    product_id: item.productId,
-    quantity: item.quantity,
   };
 }
 

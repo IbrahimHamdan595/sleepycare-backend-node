@@ -57,29 +57,6 @@ router.post('/', imageUpload.single('image'), validate(productCreateSchema), asy
   }
 });
 
-// GET /admin/products
-router.get('/', async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const products = await prisma.product.findMany({ orderBy: { createdAt: 'asc' } });
-    return res.status(200).json(products.map(toProductRead));
-  } catch (error) {
-    next(error);
-  }
-});
-
-// GET /admin/products/category/:categoryId
-router.get('/category/:categoryId', async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const products = await prisma.product.findMany({
-      where: { categoryId: req.params.categoryId },
-      orderBy: { createdAt: 'asc' },
-    });
-    return res.status(200).json(products.map(toProductRead));
-  } catch (error) {
-    next(error);
-  }
-});
-
 // PUT /admin/products/:productId (multipart form; fields left out stay as they are)
 router.put('/:productId', imageUpload.single('image'), validate(productUpdateSchema), async (req: Request, res: Response, next: NextFunction) => {
   try {

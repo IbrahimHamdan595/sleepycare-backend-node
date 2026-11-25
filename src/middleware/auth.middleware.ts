@@ -42,24 +42,6 @@ export async function getCurrentUser(
   }
 }
 
-export function requireRole(role: string) {
-  return (req: Request, res: Response, next: NextFunction) => {
-    if (!req.user) {
-      return res.status(401).json({
-        detail: 'Could not validate credentials',
-      });
-    }
-
-    if (req.user.role !== role) {
-      return res.status(403).json({
-        detail: 'Insufficient permissions',
-      });
-    }
-
-    next();
-  };
-}
-
 export function requireUser(req: Request, res: Response, next: NextFunction) {
   if (!req.user) {
     return res.status(401).json({

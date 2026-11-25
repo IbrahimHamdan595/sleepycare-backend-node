@@ -23,7 +23,6 @@ model User {
   providerUserId String?  @map("provider_user_id")
   createdAt      DateTime @default(now()) @map("created_at")
 
-  cartItems      CartItem[]
   orders         Order[]
   transactions   Transaction[]
   passwordResets PasswordResetToken[]
@@ -55,22 +54,9 @@ model Product {
   category    Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   createdAt   DateTime  @default(now()) @map("created_at")
 
-  cartItems CartItem[]
 
   @@index([categoryId])
   @@map("products")
-}
-
-model CartItem {
-  id        String  @id @default(cuid())
-  userId    String  @map("user_id")
-  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  productId String  @map("product_id")
-  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
-  quantity  Int     @default(1)
-
-  @@unique([userId, productId])
-  @@map("cart_items")
 }
 
 model Order {

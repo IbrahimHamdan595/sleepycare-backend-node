@@ -6,7 +6,6 @@ import {
   getPasswordHash,
   verifyPassword,
   createAccessToken,
-  createRefreshToken,
 } from '../utils/security';
 import { HttpException } from '../middleware/error.middleware';
 import { UserCreate, TokenResponse } from '../schemas/user.schema';
@@ -51,11 +50,8 @@ export async function authenticateUser(email: string, password: string): Promise
 }
 
 export function generateTokensForUser(user: User): TokenResponse {
-  const accessToken = createAccessToken(user.id, user.role);
-  const refreshToken = createRefreshToken(user.id, user.role);
   return {
-    access_token: accessToken,
-    refresh_token: refreshToken,
+    access_token: createAccessToken(user.id, user.role),
     token_type: 'bearer',
   };
 }
@@ -111,11 +107,3 @@ export async function resetPassword(token: string, newPassword: string): Promise
   });
 }
 
-// OAuth functions (disabled but kept for future use)
-export async function loginWithGoogle(idToken: string): Promise<User> {
-  throw new HttpException(501, 'Google OAuth is not implemented');
-}
-
-export async function loginWithApple(idToken: string): Promise<User> {
-  throw new HttpException(501, 'Apple OAuth is not implemented');
-}

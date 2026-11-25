@@ -48,16 +48,6 @@ router.post('/', imageUpload.single('icon'), async (req: Request, res: Response,
   }
 });
 
-// GET /admin/categories
-router.get('/', async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const categories = await prisma.category.findMany({ orderBy: { createdAt: 'asc' } });
-    return res.status(200).json(categories.map(toCategoryRead));
-  } catch (error) {
-    next(error);
-  }
-});
-
 // PUT /admin/categories/:categoryId (fields left out stay as they are)
 router.put('/:categoryId', imageUpload.single('icon'), async (req: Request, res: Response, next: NextFunction) => {
   try {

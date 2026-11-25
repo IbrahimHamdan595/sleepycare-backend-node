@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { getCurrentUser } from '../middleware/auth.middleware';
+import { getCurrentUser, requireUser } from '../middleware/auth.middleware';
 import { validate } from '../middleware/validate.middleware';
 import { HttpException } from '../middleware/error.middleware';
 import { prisma } from '../database';
@@ -11,21 +11,11 @@ import { toOrderRead } from '../utils/mappers';
 
 const router = Router();
 
-function ensureUserRole(req: Request, res: Response): boolean {
-  if (req.user?.role !== 'user') {
-    res.status(403).json({ detail: 'Forbidden' });
-    return false;
-  }
-  return true;
-}
-
-// All order routes require authentication
-router.use(getCurrentUser);
+// Orders are for shopper accounts; admins manage them under /admin/orders.
+router.use(getCurrentUser, requireUser);
 
 // POST /orders
 router.post('/', validate(orderCreateSchema), async (req: Request, res: Response) => {
-  if (!ensureUserRole(req, res)) return;
-
   try {
     const { items, shipping, payment_method: paymentMethod }: OrderCreate = req.body;
     // Read once, outside the transaction, so orders never queue behind each other on it.
@@ -115,8 +105,6 @@ router.post('/', validate(orderCreateSchema), async (req: Request, res: Response
 
 // GET /orders
 router.get('/', async (req: Request, res: Response) => {
-  if (!ensureUserRole(req, res)) return;
-
   try {
     const orders = await prisma.order.findMany({
       where: { userId: req.user!.id },

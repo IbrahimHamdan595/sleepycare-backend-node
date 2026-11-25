@@ -18,11 +18,6 @@ export async function connectDatabase(): Promise<void> {
   }
 }
 
-export async function disconnectDatabase(): Promise<void> {
-  await prisma.$disconnect();
-  console.log('Disconnected from PostgreSQL');
-}
-
 /** True when a write broke a unique constraint (e.g. a duplicate name or email). */
 export function isUniqueViolation(error: unknown): boolean {
   return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';

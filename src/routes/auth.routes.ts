@@ -50,16 +50,6 @@ router.post('/login', authLimiter, validate(loginFormSchema), async (req: Reques
   }
 });
 
-// POST /auth/google (disabled)
-router.post('/google', async (req: Request, res: Response) => {
-  return res.status(503).json({ detail: 'Google login disabled for now' });
-});
-
-// POST /auth/apple (disabled)
-router.post('/apple', async (req: Request, res: Response) => {
-  return res.status(503).json({ detail: 'Apple login disabled for now' });
-});
-
 // POST /auth/forgot-password
 router.post(
   '/forgot-password',

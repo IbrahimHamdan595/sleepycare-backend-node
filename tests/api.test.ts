@@ -59,7 +59,7 @@ describe('auth', () => {
     expect(reg.status).toBe(200);
     expect(reg.body).toMatchObject({ token_type: 'bearer' });
     expect(reg.body.access_token).toBeTruthy();
-    expect(reg.body.refresh_token).toBeTruthy();
+    expect(reg.body.refresh_token).toBeUndefined();
 
     const login = await api
       .post('/auth/login')
@@ -96,15 +96,16 @@ describe('auth', () => {
 
   it('protects routes by token and role', async () => {
     expect((await api.get('/auth/me')).status).toBe(401);
-    expect((await api.get('/cart')).status).toBe(401);
+    expect((await api.get('/orders')).status).toBe(401);
 
     const user = await userToken();
     const res = await api.get('/admin/users').set('Authorization', `Bearer ${user}`);
     expect(res.status).toBe(403);
 
     const admin = await adminToken();
-    const cart = await api.get('/cart').set('Authorization', `Bearer ${admin}`);
-    expect(cart.status).toBe(403);
+    // Admins manage orders under /admin; the shopper routes are for shoppers.
+    const orders = await api.get('/orders').set('Authorization', `Bearer ${admin}`);
+    expect(orders.status).toBe(403);
   });
 
   it('resets a password once per token', async () => {
@@ -213,7 +214,7 @@ describe('catalogue and admin', () => {
 
     expect((await api.get(`/products/category/${category.id}`)).body).toHaveLength(1);
     expect((await api.get('/products/does-not-exist')).status).toBe(404);
-    expect((await api.get('/admin/products').set(auth)).body).toHaveLength(1);
+    expect((await api.get('/products')).body).toHaveLength(1);
 
     expect((await api.delete(`/admin/products/${product.id}`).set(auth)).status).toBe(204);
     expect((await api.get('/products')).body).toHaveLength(0);
@@ -237,44 +238,6 @@ describe('catalogue and admin', () => {
     expect((await api.get(`/partners/${created.body.id}`)).status).toBe(200);
     expect((await api.delete(`/admin/partners/${created.body.id}`).set(auth)).status).toBe(204);
     expect((await api.get(`/partners/${created.body.id}`)).status).toBe(404);
-  });
-});
-
-describe('cart', () => {
-  it('adds, merges, updates and removes items for the owner only', async () => {
-    const admin = await adminToken();
-    const product = await makeProduct(admin);
-    const user = await userToken();
-    const auth = { Authorization: `Bearer ${user}` };
-
-    const first = await api.post('/cart').set(auth).send({ product_id: product.id, quantity: 2 });
-    expect(first.status).toBe(201);
-    const second = await api.post('/cart').set(auth).send({ product_id: product.id, quantity: 3 });
-    expect(second.body).toMatchObject({ id: first.body.id, quantity: 5, product_id: product.id });
-
-    const cart = await api.get('/cart').set(auth);
-    expect(cart.body).toHaveLength(1);
-
-    const other = await userToken('other@test.dev');
-    const steal = await api
-      .put(`/cart/${first.body.id}`)
-      .set('Authorization', `Bearer ${other}`)
-      .send({ quantity: 1 });
-    expect(steal.status).toBe(404);
-
-    const updated = await api.put(`/cart/${first.body.id}`).set(auth).send({ quantity: 1 });
-    expect(updated.body.quantity).toBe(1);
-
-    // A double-click on delete: one succeeds, the other finds nothing.
-    const deletes = await Promise.all([
-      api.delete(`/cart/${first.body.id}`).set(auth),
-      api.delete(`/cart/${first.body.id}`).set(auth),
-    ]);
-    expect(deletes.map((r) => r.status).sort()).toEqual([204, 404]);
-    expect((await api.get('/cart').set(auth)).body).toHaveLength(0);
-
-    const missing = await api.post('/cart').set(auth).send({ product_id: 'nope', quantity: 1 });
-    expect(missing.status).toBe(404);
   });
 });
 
@@ -412,8 +375,6 @@ describe('orders', () => {
       .send(orderBody([{ product_id: product.id, quantity: 3_000_000_000 }]));
     expect(qty.status).toBe(422);
 
-    const cart = await api.post('/cart').set(auth).send({ product_id: product.id, quantity: 3e9 });
-    expect(cart.status).toBe(422);
   });
 
   it('keeps past orders when a product is deleted', async () => {

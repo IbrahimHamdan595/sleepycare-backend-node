@@ -16,7 +16,6 @@ const empty = (): MongoCollections => ({
   users: [],
   categories: [],
   products: [],
-  carts: [],
   orders: [],
   transactions: [],
   partners: [],
@@ -39,7 +38,6 @@ function shop() {
     users: [user],
     categories: [category],
     products: [product],
-    carts: [{ _id: new ObjectId(), user_id: user._id, product_id: product._id, quantity: 1 }],
     orders: [order],
     transactions: [{ _id: new ObjectId(), order_id: order._id, user_id: user._id, amount: 9, payment_method: 'cash_on_delivery', status: 'pending', created_at: new Date('2025-12-02T10:00:01Z') }],
     partners: [{ _id: new ObjectId(), name: 'Pharma', icon: '💊', created_at: new Date('2025-11-01T00:00:00Z'), updated_at: new Date('2025-11-02T00:00:00Z') }],
@@ -57,7 +55,6 @@ describe('transformMongoData', () => {
     expect(plan.orders[0]).toMatchObject({ id: order._id.toHexString(), userId: user._id.toHexString() });
     expect(plan.orderItems[0]).toMatchObject({ orderId: order._id.toHexString(), productId: product._id.toHexString(), quantity: 2, unitPrice: 4.5 });
     expect(plan.transactions[0]).toMatchObject({ orderId: order._id.toHexString(), paymentMethod: 'cash_on_delivery' });
-    expect(plan.cartItems).toHaveLength(1);
     expect(plan.partners[0].updatedAt).toEqual(new Date('2025-11-02T00:00:00Z'));
     expect(plan.notes).toEqual([]);
   });
@@ -98,7 +95,6 @@ describe('transformMongoData', () => {
   it('drops records that point at missing data and says why', () => {
     const { data, user, product } = shop();
     const ghost = new ObjectId();
-    data.carts.push({ _id: new ObjectId(), user_id: user._id, product_id: ghost, quantity: 1 });
     data.products.push({ _id: new ObjectId(), name: 'Orphan', price: 1, stock: 1, category_id: ghost });
     const lostOrder = { _id: new ObjectId(), user_id: ghost, items: [{ product_id: product._id, quantity: 1, unit_price: 4.5 }] };
     data.orders.push(lostOrder);
@@ -106,20 +102,11 @@ describe('transformMongoData', () => {
 
     const plan = transformMongoData(data);
 
-    expect(plan.cartItems).toHaveLength(1);
     expect(plan.products.find((p) => p.name === 'Orphan')!.categoryId).toBeNull();
     expect(plan.orders).toHaveLength(1);
     expect(plan.transactions).toHaveLength(1);
-    expect(plan.notes).toHaveLength(4);
+    expect(plan.notes).toHaveLength(3);
     expect(plan.notes.join('\n')).toContain(lostOrder._id.toHexString());
-  });
-
-  it('merges duplicate cart rows for the same user and product', () => {
-    const { data, user, product } = shop();
-    data.carts.push({ _id: new ObjectId(), user_id: user._id, product_id: product._id, quantity: 4 });
-    const plan = transformMongoData(data);
-    expect(plan.cartItems).toHaveLength(1);
-    expect(plan.cartItems[0].quantity).toBe(5);
   });
 
   it('rounds money to cents', () => {
@@ -142,7 +129,7 @@ describe('writeImportPlan', () => {
     data.users[0].password_hash = (data.users[0].password_hash as string).replace(/^\$2a\$/, '$2b$');
 
     const counts = await writeImportPlan(prisma, transformMongoData(data));
-    expect(counts).toEqual({ users: 1, categories: 1, products: 1, cartItems: 1, orders: 1, orderItems: 1, transactions: 1, partners: 1 });
+    expect(counts).toEqual({ users: 1, categories: 1, products: 1, orders: 1, orderItems: 1, transactions: 1, partners: 1 });
 
     const api = request(app);
     const login = await api.post('/auth/login').type('form').send({ username: 'rana@test.dev', password: 'secret1' });

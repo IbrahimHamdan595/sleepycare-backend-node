@@ -14,7 +14,7 @@ export function verifyPassword(password: string, hashedPassword: string): Promis
 interface TokenPayload {
   sub: string;
   role: string;
-  type: 'access' | 'refresh';
+  type: 'access';
   exp?: number;
 }
 
@@ -31,14 +31,7 @@ export function createAccessToken(subject: string, role: string): string {
   );
 }
 
-export function createRefreshToken(subject: string, role: string): string {
-  return createToken(
-    { sub: subject, role, type: 'refresh' },
-    config.refreshTokenExpiresMinutes
-  );
-}
-
-export function decodeToken(token: string, verifyType?: 'access' | 'refresh'): TokenPayload {
+export function decodeToken(token: string, verifyType?: 'access'): TokenPayload {
   try {
     const payload = jwt.verify(token, config.jwtSecret) as TokenPayload;
     if (verifyType && payload.type !== verifyType) {

@@ -8,19 +8,9 @@ interface Config {
 
   // JWT
   jwtSecret: string;
-  jwtAlgorithm: string;
   accessTokenExpiresMinutes: number;
-  refreshTokenExpiresMinutes: number;
 
-  // OAuth (optional, disabled)
-  googleClientId: string | null;
-  appleClientId: string | null;
-  appleIssuer: string | null;
-  appleAudience: string | null;
 
-  // Admin
-  adminEmail: string | null;
-  adminPassword: string | null;
 
   // Frontend (it sends the emails and hosts the reset page)
   frontendUrl: string;
@@ -54,19 +44,9 @@ export const config: Config = {
 
   // JWT
   jwtSecret: getEnvVar('JWT_SECRET', true)!,
-  jwtAlgorithm: 'HS256',
   accessTokenExpiresMinutes: parseInt(getEnvVar('ACCESS_TOKEN_EXPIRES_MINUTES') || '30', 10),
-  refreshTokenExpiresMinutes: parseInt(getEnvVar('REFRESH_TOKEN_EXPIRES_MINUTES') || '10080', 10), // 7 days
 
-  // OAuth (optional)
-  googleClientId: getEnvVar('GOOGLE_CLIENT_ID'),
-  appleClientId: getEnvVar('APPLE_CLIENT_ID'),
-  appleIssuer: getEnvVar('APPLE_ISSUER'),
-  appleAudience: getEnvVar('APPLE_AUDIENCE'),
 
-  // Admin
-  adminEmail: getEnvVar('ADMIN_EMAIL'),
-  adminPassword: getEnvVar('ADMIN_PASSWORD'),
 
   // Frontend
   frontendUrl: getEnvVar('FRONTEND_URL', true)!.replace(/\/+$/, ''),

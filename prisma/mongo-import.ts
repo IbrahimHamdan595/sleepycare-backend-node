@@ -13,7 +13,6 @@ export interface MongoCollections {
   users: MongoDoc[];
   categories: MongoDoc[];
   products: MongoDoc[];
-  carts: MongoDoc[];
   orders: MongoDoc[];
   transactions: MongoDoc[];
   partners: MongoDoc[];
@@ -23,7 +22,6 @@ export interface ImportPlan {
   users: Prisma.UserCreateManyInput[];
   categories: Prisma.CategoryCreateManyInput[];
   products: (Prisma.ProductCreateManyInput & { price: number })[];
-  cartItems: Prisma.CartItemCreateManyInput[];
   orders: (Prisma.OrderCreateManyInput & { totalAmount: number })[];
   orderItems: Prisma.OrderItemCreateManyInput[];
   transactions: Prisma.TransactionCreateManyInput[];
@@ -120,23 +118,6 @@ export function transformMongoData(data: MongoCollections): ImportPlan {
     );
   }
 
-  // Carts: one row per user and product in Postgres, so duplicates are added up.
-  const cartByKey = new Map<string, Prisma.CartItemCreateManyInput>();
-  for (const c of data.carts) {
-    const id = idOf(c._id);
-    const userId = idOf(c.user_id);
-    const productId = idOf(c.product_id);
-    if (!userIds.has(userId) || !productIds.has(productId)) {
-      notes.push(`Cart item ${id}: its user or product no longer exists, so it is left out.`);
-      continue;
-    }
-    const key = `${userId}:${productId}`;
-    const quantity = whole(c.quantity, 1);
-    const existing = cartByKey.get(key);
-    if (existing) existing.quantity = (existing.quantity ?? 0) + quantity;
-    else cartByKey.set(key, { id, userId, productId, quantity });
-  }
-
   // Orders keep their lines even if a product was deleted since, as before.
   const orders: ImportPlan['orders'] = [];
   const orderItems: ImportPlan['orderItems'] = [];
@@ -197,7 +178,6 @@ export function transformMongoData(data: MongoCollections): ImportPlan {
     users,
     categories,
     products,
-    cartItems: [...cartByKey.values()],
     orders,
     orderItems,
     transactions,
@@ -228,7 +208,6 @@ export async function writeImportPlan(prisma: PrismaClient, plan: ImportPlan) {
       users: (await tx.user.createMany({ data: plan.users })).count,
       categories: (await tx.category.createMany({ data: plan.categories })).count,
       products: (await tx.product.createMany({ data: plan.products })).count,
-      cartItems: (await tx.cartItem.createMany({ data: plan.cartItems })).count,
       orders: (await tx.order.createMany({ data: plan.orders })).count,
       orderItems: (await tx.orderItem.createMany({ data: plan.orderItems })).count,
       transactions: (await tx.transaction.createMany({ data: plan.transactions })).count,
