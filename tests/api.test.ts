@@ -3,7 +3,7 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import app from '../src/app';
 import { prisma } from '../src/database';
 import { getPasswordHash } from '../src/utils/security';
-import { resetDatabase } from './helpers';
+import { orderBody, resetDatabase } from './helpers';
 
 // End-to-end checks of the API against a real Postgres (TEST_DATABASE_URL).
 // They pin the JSON shapes the frontend relies on, so the move from MongoDB
@@ -278,8 +278,8 @@ describe('cart', () => {
   });
 });
 
-describe('orders and transactions', () => {
-  it('creates an order, takes stock and records a transaction', async () => {
+describe('orders', () => {
+  it('creates an order, takes stock and records the cash-on-delivery payment', async () => {
     const admin = await adminToken();
     const wipes = await makeProduct(admin, { name: 'Wipes', price: '4.5', stock: '10' });
     const cream = await makeProduct(admin, { name: 'Cream', price: '0.1', stock: '5' });
@@ -289,37 +289,22 @@ describe('orders and transactions', () => {
     const order = await api
       .post('/orders')
       .set(auth)
-      .send({
-        items: [
-          { product_id: wipes.id, quantity: 2, unit_price: 4.5 },
-          { product_id: cream.id, quantity: 3, unit_price: 0.1 },
-        ],
-      });
+      .send(orderBody([
+        { product_id: wipes.id, quantity: 2 },
+        { product_id: cream.id, quantity: 3 },
+      ]));
     expect(order.status).toBe(201);
-    expect(order.body).toMatchObject({ status: 'pending', total_amount: 9.3 });
+    // 9.30 of items, 9.99 delivery (under 35) and 8% tax (0.74).
+    expect(order.body).toMatchObject({ status: 'pending', subtotal: 9.3, delivery_fee: 9.99, tax: 0.74, total_amount: 20.03 });
     expect(order.body.items).toEqual(
       expect.arrayContaining([
-        { product_id: wipes.id, quantity: 2, unit_price: 4.5 },
-        { product_id: cream.id, quantity: 3, unit_price: 0.1 },
+        { product_id: wipes.id, product_name: 'Wipes', quantity: 2, unit_price: 4.5 },
+        { product_id: cream.id, product_name: 'Cream', quantity: 3, unit_price: 0.1 },
       ])
     );
     expect((await api.get(`/products/${wipes.id}`)).body.stock).toBe(8);
-
-    const tx = await api
-      .post('/transactions')
-      .set(auth)
-      .send({ order_id: order.body.id, amount: 9.3, payment_method: 'cash_on_delivery', status: 'pending' });
-    expect(tx.status).toBe(201);
-    expect(tx.body).toMatchObject({ order_id: order.body.id, amount: 9.3, status: 'pending' });
-    expect((await api.get('/transactions').set(auth)).body).toHaveLength(1);
+    expect(await prisma.transaction.count({ where: { orderId: order.body.id } })).toBe(1);
     expect((await api.get('/orders').set(auth)).body).toHaveLength(1);
-
-    const other = await userToken('other@test.dev');
-    const foreign = await api
-      .post('/transactions')
-      .set('Authorization', `Bearer ${other}`)
-      .send({ order_id: order.body.id, amount: 1, payment_method: 'cash', status: 'pending' });
-    expect(foreign.status).toBe(404);
 
     // Admin views and updates orders; per-user counts work.
     const adminAuth = { Authorization: `Bearer ${admin}` };
@@ -331,7 +316,7 @@ describe('orders and transactions', () => {
     expect(shipped.body.status).toBe('shipped');
     const count = await api.get(`/admin/users/${order.body.user_id}/orders-count`).set(adminAuth);
     expect(count.body).toEqual({ user_id: order.body.user_id, orders_count: 1 });
-    expect((await api.get('/admin/users').set(adminAuth)).body).toHaveLength(3);
+    expect((await api.get('/admin/users').set(adminAuth)).body).toHaveLength(2);
   });
 
   it('takes no stock at all when one item is short', async () => {
@@ -343,16 +328,15 @@ describe('orders and transactions', () => {
     const res = await api
       .post('/orders')
       .set(auth)
-      .send({
-        items: [
-          { product_id: plenty.id, quantity: 4, unit_price: 4.5 },
-          { product_id: scarce.id, quantity: 2, unit_price: 4.5 },
-        ],
-      });
+      .send(orderBody([
+        { product_id: plenty.id, quantity: 4 },
+        { product_id: scarce.id, quantity: 2 },
+      ]));
     expect(res.status).toBe(400);
     expect(res.body.detail).toBe('Insufficient stock for Scarce');
     expect((await api.get(`/products/${plenty.id}`)).body.stock).toBe(10);
     expect(await prisma.order.count()).toBe(0);
+    expect(await prisma.transaction.count()).toBe(0);
   });
 
   it('never sells more than the stock when orders arrive together', async () => {
@@ -367,7 +351,7 @@ describe('orders and transactions', () => {
         api
           .post('/orders')
           .set('Authorization', `Bearer ${token}`)
-          .send({ items: [{ product_id: product.id, quantity: 1, unit_price: 4.5 }] })
+          .send(orderBody([{ product_id: product.id, quantity: 1 }]))
       )
     );
 
@@ -386,13 +370,13 @@ describe('orders and transactions', () => {
     const results = await Promise.all(
       buyers.map((token, i) => {
         const pair = [
-          { product_id: p1.id, quantity: 1, unit_price: 4.5 },
-          { product_id: p2.id, quantity: 1, unit_price: 4.5 },
+          { product_id: p1.id, quantity: 1 },
+          { product_id: p2.id, quantity: 1 },
         ];
         return api
           .post('/orders')
           .set('Authorization', `Bearer ${token}`)
-          .send({ items: i % 2 ? pair : pair.reverse() });
+          .send(orderBody(i % 2 ? pair : pair.reverse()));
       })
     );
 
@@ -409,12 +393,10 @@ describe('orders and transactions', () => {
     const res = await api
       .post('/orders')
       .set(auth)
-      .send({
-        items: [
-          { product_id: product.id, quantity: 2, unit_price: 4.5 },
-          { product_id: product.id, quantity: 2, unit_price: 4.5 },
-        ],
-      });
+      .send(orderBody([
+        { product_id: product.id, quantity: 2 },
+        { product_id: product.id, quantity: 2 },
+      ]));
     expect(res.status).toBe(400);
     expect((await api.get(`/products/${product.id}`)).body.stock).toBe(3);
   });
@@ -427,14 +409,8 @@ describe('orders and transactions', () => {
     const qty = await api
       .post('/orders')
       .set(auth)
-      .send({ items: [{ product_id: product.id, quantity: 3_000_000_000, unit_price: 1 }] });
+      .send(orderBody([{ product_id: product.id, quantity: 3_000_000_000 }]));
     expect(qty.status).toBe(422);
-
-    const price = await api
-      .post('/orders')
-      .set(auth)
-      .send({ items: [{ product_id: product.id, quantity: 1, unit_price: 1e12 }] });
-    expect(price.status).toBe(422);
 
     const cart = await api.post('/cart').set(auth).send({ product_id: product.id, quantity: 3e9 });
     expect(cart.status).toBe(422);
@@ -447,11 +423,11 @@ describe('orders and transactions', () => {
     await api
       .post('/orders')
       .set(auth)
-      .send({ items: [{ product_id: product.id, quantity: 1, unit_price: 4.5 }] });
+      .send(orderBody([{ product_id: product.id, quantity: 1 }]));
 
     const del = await api.delete(`/admin/products/${product.id}`).set('Authorization', `Bearer ${admin}`);
     expect(del.status).toBe(204);
     const orders = await api.get('/orders').set(auth);
-    expect(orders.body[0].items[0].product_id).toBe(product.id);
+    expect(orders.body[0].items[0]).toMatchObject({ product_id: product.id, product_name: 'Baby Wipes' });
   });
 });

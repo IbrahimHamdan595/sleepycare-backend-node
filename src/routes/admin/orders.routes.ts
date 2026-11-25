@@ -14,7 +14,7 @@ router.use(getCurrentUser, requireAdmin);
 router.get('/', async (req: Request, res: Response) => {
   try {
     const orders = await prisma.order.findMany({
-      include: { items: { orderBy: { id: 'asc' } } },
+      include: { items: { orderBy: { id: 'asc' } }, user: { select: { name: true, email: true } } },
       orderBy: { createdAt: 'asc' },
     });
     return res.status(200).json(orders.map(toOrderRead));
@@ -40,7 +40,7 @@ router.put(
       const updated = await prisma.order.update({
         where: { id: order.id },
         data: { status: req.body.status },
-        include: { items: { orderBy: { id: 'asc' } } },
+        include: { items: { orderBy: { id: 'asc' } }, user: { select: { name: true, email: true } } },
       });
 
       return res.status(200).json(toOrderRead(updated));

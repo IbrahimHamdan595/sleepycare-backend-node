@@ -81,6 +81,20 @@ model Order {
   totalAmount Decimal  @default(0) @map("total_amount") @db.Decimal(10, 2)
   createdAt   DateTime @default(now()) @map("created_at")
 
+  // The breakdown is empty on orders placed before delivery and tax were stored.
+  subtotal      Decimal? @db.Decimal(10, 2)
+  deliveryFee   Decimal? @map("delivery_fee") @db.Decimal(10, 2)
+  tax           Decimal? @db.Decimal(10, 2)
+  paymentMethod String   @default("cash_on_delivery") @map("payment_method")
+
+  // Delivery details; empty on orders placed before they were saved.
+  shippingName        String? @map("shipping_name")
+  shippingPhone       String? @map("shipping_phone")
+  shippingAddress     String? @map("shipping_address")
+  shippingCity        String? @map("shipping_city")
+  shippingGovernorate String? @map("shipping_governorate")
+  shippingNotes       String? @map("shipping_notes")
+
   items        OrderItem[]
   transactions Transaction[]
 
@@ -95,6 +109,9 @@ model OrderItem {
   // Kept as a plain column, not a foreign key, so that deleting a product
   // does not touch past orders (the same behaviour as the MongoDB version).
   productId String  @map("product_id")
+  // The product's name when it was bought, so the order still reads well
+  // after the product is renamed or deleted. Empty on older orders.
+  productName String? @map("product_name")
   quantity  Int
   unitPrice Decimal @map("unit_price") @db.Decimal(10, 2)
 

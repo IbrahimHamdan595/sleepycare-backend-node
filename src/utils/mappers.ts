@@ -6,7 +6,6 @@ import {
   Partner,
   Prisma,
   Product,
-  Transaction,
   User,
 } from '@prisma/client';
 import { CartItemRead } from '../schemas/cart.schema';
@@ -14,7 +13,6 @@ import { CategoryRead } from '../schemas/category.schema';
 import { OrderRead } from '../schemas/order.schema';
 import { PartnerRead } from '../schemas/partner.schema';
 import { ProductRead } from '../schemas/product.schema';
-import { TransactionRead } from '../schemas/transaction.schema';
 import { UserRead } from '../schemas/user.schema';
 import { SettingsRead } from '../schemas/settings.schema';
 import type { StoreSettings } from '../services/pricing.service';
@@ -86,29 +84,39 @@ export function toCartRead(item: CartItem): CartItemRead {
   };
 }
 
-export function toOrderRead(order: Order & { items: OrderItem[] }): OrderRead {
+type OrderWithItems = Order & {
+  items: OrderItem[];
+  user?: Pick<User, 'name' | 'email'>;
+};
+
+export function toOrderRead(order: OrderWithItems): OrderRead {
   return {
     id: order.id,
     user_id: order.userId,
     status: order.status,
+    // Orders placed before the breakdown was stored only have a total.
+    subtotal: order.subtotal ? money(order.subtotal) : money(order.totalAmount),
+    delivery_fee: order.deliveryFee ? money(order.deliveryFee) : 0,
+    tax: order.tax ? money(order.tax) : 0,
     total_amount: money(order.totalAmount),
+    payment_method: order.paymentMethod,
+    shipping: order.shippingName
+      ? {
+          full_name: order.shippingName,
+          phone: order.shippingPhone ?? '',
+          address: order.shippingAddress ?? '',
+          city: order.shippingCity ?? '',
+          governorate: order.shippingGovernorate ?? '',
+          notes: order.shippingNotes,
+        }
+      : null,
     created_at: order.createdAt.toISOString(),
     items: order.items.map((item) => ({
       product_id: item.productId,
+      product_name: item.productName,
       quantity: item.quantity,
       unit_price: money(item.unitPrice),
     })),
-  };
-}
-
-export function toTransactionRead(transaction: Transaction): TransactionRead {
-  return {
-    id: transaction.id,
-    order_id: transaction.orderId,
-    user_id: transaction.userId,
-    amount: money(transaction.amount),
-    payment_method: transaction.paymentMethod,
-    status: transaction.status,
-    created_at: transaction.createdAt.toISOString(),
+    ...(order.user ? { customer: { name: order.user.name, email: order.user.email } } : {}),
   };
 }

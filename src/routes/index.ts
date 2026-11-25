@@ -6,7 +6,6 @@ import categoriesRoutes from './categories.routes';
 import partnersRoutes from './partners.routes';
 import cartRoutes from './cart.routes';
 import ordersRoutes from './orders.routes';
-import transactionsRoutes from './transactions.routes';
 
 import adminProductsRoutes from './admin/products.routes';
 import adminCategoriesRoutes from './admin/categories.routes';
@@ -40,6 +39,5 @@ router.use('/products', productsRoutes);
 // Protected user routes
 router.use('/cart', cartRoutes);
 router.use('/orders', ordersRoutes);
-router.use('/transactions', transactionsRoutes);
 
 export default router;

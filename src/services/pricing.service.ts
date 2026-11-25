@@ -35,9 +35,14 @@ export function quoteOrder(subtotal: number, settings: StoreSettings): Quote {
 
 type Db = Prisma.TransactionClient | typeof prisma;
 
-/** The current settings, creating the single row with the defaults the first time. */
+/**
+ * The current settings, or the defaults until an admin first saves them.
+ * Reading never writes: several orders arriving at once on a fresh database
+ * would otherwise race to create the row.
+ */
 export async function getStoreSettings(db: Db = prisma): Promise<StoreSettings> {
-  const row = await db.storeSettings.upsert({ where: { id: 'default' }, create: { id: 'default' }, update: {} });
+  const row = await db.storeSettings.findUnique({ where: { id: 'default' } });
+  if (!row) return DEFAULT_SETTINGS;
   return {
     deliveryFee: row.deliveryFee.toNumber(),
     freeDeliveryThreshold: row.freeDeliveryThreshold.toNumber(),

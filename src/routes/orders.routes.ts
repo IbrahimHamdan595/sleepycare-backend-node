@@ -3,9 +3,10 @@ import { getCurrentUser } from '../middleware/auth.middleware';
 import { validate } from '../middleware/validate.middleware';
 import { HttpException } from '../middleware/error.middleware';
 import { prisma } from '../database';
-import { orderCreateSchema, OrderItemIn } from '../schemas/order.schema';
+import { orderCreateSchema, OrderCreate } from '../schemas/order.schema';
 import { MAX_MONEY } from '../schemas/limits';
-import { roundMoney, toOrderRead } from '../utils/mappers';
+import { getStoreSettings, quoteOrder } from '../services/pricing.service';
+import { toOrderRead } from '../utils/mappers';
 
 const router = Router();
 
@@ -25,17 +26,19 @@ router.post('/', validate(orderCreateSchema), async (req: Request, res: Response
   if (!ensureUserRole(req, res)) return;
 
   try {
-    const items: OrderItemIn[] = req.body.items;
+    const { items, shipping, payment_method: paymentMethod }: OrderCreate = req.body;
+    // Read once, outside the transaction, so orders never queue behind each other on it.
+    const settings = await getStoreSettings();
 
     // Everything happens in one transaction: if any item fails, no stock is
-    // taken and no order is created.
+    // taken, no order is created and no payment is recorded.
     const order = await prisma.$transaction(async (tx) => {
       const ids = [...new Set(items.map((item) => item.product_id))];
       const products = await tx.product.findMany({ where: { id: { in: ids } } });
       const byId = new Map(products.map((p) => [p.id, p]));
       const missing = items.find((item) => !byId.has(item.product_id));
       if (missing) {
-        throw new HttpException(404, `Product ${missing.product_id} not found`);
+        throw new HttpException(404, `This product is no longer available: ${missing.product_id}`);
       }
 
       // Take the stock per product, in id order, so that two orders with the
@@ -55,23 +58,38 @@ router.post('/', validate(orderCreateSchema), async (req: Request, res: Response
         }
       }
 
-      // Postgres stores money to the cent, so round before both storing and
-      // totalling; otherwise the total could disagree with the saved lines.
-      let total = 0;
+      // Prices always come from the product row, never from the browser.
+      let subtotal = 0;
       const orderItems = items.map((item) => {
-        const unitPrice = roundMoney(item.unit_price);
-        total += item.quantity * unitPrice;
-        return { productId: item.product_id, quantity: item.quantity, unitPrice };
+        const product = byId.get(item.product_id)!;
+        const unitPrice = product.price.toNumber();
+        subtotal += item.quantity * unitPrice;
+        return { productId: product.id, productName: product.name, quantity: item.quantity, unitPrice };
       });
-      if (total > MAX_MONEY) {
+      const quote = quoteOrder(subtotal, settings);
+      if (quote.total > MAX_MONEY) {
         throw new HttpException(400, 'Order total is too large');
       }
 
       return tx.order.create({
         data: {
           userId: req.user!.id,
-          totalAmount: roundMoney(total),
+          subtotal: quote.subtotal,
+          deliveryFee: quote.deliveryFee,
+          tax: quote.tax,
+          totalAmount: quote.total,
+          paymentMethod,
+          shippingName: shipping.full_name,
+          shippingPhone: shipping.phone,
+          shippingAddress: shipping.address,
+          shippingCity: shipping.city,
+          shippingGovernorate: shipping.governorate,
+          shippingNotes: shipping.notes || null,
           items: { create: orderItems },
+          // Cash on delivery: the payment is pending until the courier collects it.
+          transactions: {
+            create: { userId: req.user!.id, amount: quote.total, paymentMethod, status: 'pending' },
+          },
         },
         include: { items: { orderBy: { id: 'asc' } } },
       });
