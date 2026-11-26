@@ -30,3 +30,12 @@ describe('error statuses', () => {
     expect(res.status).toBe(401);
   });
 });
+
+describe('response headers', () => {
+  it('does not announce the framework and forbids MIME sniffing and framing', async () => {
+    const res = await api.get('/settings');
+    expect(res.headers['x-powered-by']).toBeUndefined();
+    expect(res.headers['x-content-type-options']).toBe('nosniff');
+    expect(res.headers['x-frame-options']).toBe('DENY');
+  });
+});

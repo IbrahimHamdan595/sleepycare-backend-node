@@ -11,6 +11,14 @@ const app = express();
 // rate limits see each visitor's real address instead of the proxy's.
 app.set('trust proxy', 1);
 
+// Don't announce the framework; this JSON API is never meant to be sniffed as
+// another type or shown inside a frame.
+app.disable('x-powered-by');
+app.use((_req, res, next) => {
+  res.set({ 'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY' });
+  next();
+});
+
 // CORS configuration matching FastAPI
 const corsOptions: cors.CorsOptions = {
   origin: (origin, callback) => {
