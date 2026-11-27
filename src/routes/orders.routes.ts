@@ -29,7 +29,8 @@ router.post('/', validate(orderCreateSchema), async (req: Request, res: Response
       const byId = new Map(products.map((p) => [p.id, p]));
       const missing = items.find((item) => !byId.has(item.product_id));
       if (missing) {
-        throw new HttpException(404, `This product is no longer available: ${missing.product_id}`);
+        // The server can't name a deleted product; the shop names it from the cart.
+        throw new HttpException(404, 'An item in your cart is no longer sold.', { product_id: missing.product_id });
       }
 
       // Take the stock per product, in id order, so that two orders with the
@@ -96,7 +97,7 @@ router.post('/', validate(orderCreateSchema), async (req: Request, res: Response
     return res.status(201).json(orderRead);
   } catch (error) {
     if (error instanceof HttpException) {
-      return res.status(error.statusCode).json({ detail: error.detail });
+      return res.status(error.statusCode).json({ detail: error.detail, ...error.extra });
     }
     console.error('Create order error:', error);
     return res.status(500).json({ detail: 'Internal server error' });

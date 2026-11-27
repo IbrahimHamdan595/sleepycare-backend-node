@@ -3,11 +3,14 @@ import { Request, Response, NextFunction } from 'express';
 export class HttpException extends Error {
   statusCode: number;
   detail: string;
+  /** Extra fields sent next to `detail`, e.g. the id of the product a message is about. */
+  extra?: Record<string, unknown>;
 
-  constructor(statusCode: number, detail: string) {
+  constructor(statusCode: number, detail: string, extra?: Record<string, unknown>) {
     super(detail);
     this.statusCode = statusCode;
     this.detail = detail;
+    this.extra = extra;
   }
 }
 
@@ -18,7 +21,7 @@ export function errorHandler(
   next: NextFunction
 ) {
   if (err instanceof HttpException) {
-    return res.status(err.statusCode).json({ detail: err.detail });
+    return res.status(err.statusCode).json({ detail: err.detail, ...err.extra });
   }
 
   // Upload problems (multer): a file over the size limit, an unexpected field.

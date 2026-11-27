@@ -68,11 +68,11 @@ describe('POST /orders', () => {
     expect(await prisma.order.count()).toBe(0);
   });
 
-  it('names a product that is no longer available', async () => {
+  it('says an item is no longer sold, with its id so the shop can name it from the cart', async () => {
     const { shopper } = await shop();
     const res = await api.post('/orders').set(shopper).send(orderBody([{ product_id: 'gone-123', quantity: 1 }]));
     expect(res.status).toBe(404);
-    expect(res.body.detail).toBe('This product is no longer available: gone-123');
+    expect(res.body).toEqual({ detail: 'An item in your cart is no longer sold.', product_id: 'gone-123' });
   });
 
   it('no longer accepts payments from the browser', async () => {
