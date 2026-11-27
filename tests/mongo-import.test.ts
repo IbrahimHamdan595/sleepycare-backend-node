@@ -46,6 +46,12 @@ function shop() {
 }
 
 describe('transformMongoData', () => {
+  it('imports the old "completed" status as "delivered", the status the shop uses now', () => {
+    const { data } = shop();
+    data.orders[0].status = 'completed';
+    expect(transformMongoData(data).orders[0].status).toBe('delivered');
+  });
+
   it('keeps the MongoDB ids as text so links between records survive', () => {
     const { data, user, category, product, order } = shop();
     const plan = transformMongoData(data);

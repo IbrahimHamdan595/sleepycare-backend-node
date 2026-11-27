@@ -131,7 +131,8 @@ export function transformMongoData(data: MongoCollections): ImportPlan {
     orders.push({
       id,
       userId,
-      status: o.status ?? 'pending',
+      // The migration's completed→delivered update runs before the import, on an empty table.
+      status: o.status === 'completed' ? 'delivered' : (o.status ?? 'pending'),
       totalAmount: money(o.total_amount),
       createdAt: createdAt(o),
     });
