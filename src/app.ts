@@ -19,33 +19,20 @@ app.use((_req, res, next) => {
   next();
 });
 
-// CORS configuration matching FastAPI
+// Browsers may call the API only from the shop itself (FRONTEND_URL) and from
+// local development. Apps without an Origin header (curl, servers) are allowed.
+const allowedOrigins = new Set([
+  config.frontendUrl,
+  'http://localhost:3000',
+  'http://127.0.0.1:3000',
+  'http://localhost:8787', // `npm run preview` (Cloudflare Workers runtime)
+]);
+
 const corsOptions: cors.CorsOptions = {
   origin: (origin, callback) => {
-    const allowedOrigins = [
-      'http://localhost:3000',
-      'http://localhost:3001',
-      'http://127.0.0.1:3000',
-      'http://127.0.0.1:3001',
-      'https://sleepycare-frontend.vercel.app',
-    ];
-
-    // Allow requests with no origin (like mobile apps or curl)
-    if (!origin) {
+    if (!origin || allowedOrigins.has(origin)) {
       return callback(null, true);
     }
-
-    // Check if origin is in allowed list
-    if (allowedOrigins.includes(origin)) {
-      return callback(null, true);
-    }
-
-    // Check regex pattern for vercel.app and onrender.com
-    const regexPattern = /^https:\/\/.*\.(vercel\.app|onrender\.com)$/;
-    if (regexPattern.test(origin)) {
-      return callback(null, true);
-    }
-
     callback(Object.assign(new Error('Not allowed by CORS'), { status: 403 }));
   },
   credentials: true,

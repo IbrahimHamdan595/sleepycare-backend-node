@@ -39,3 +39,17 @@ describe('response headers', () => {
     expect(res.headers['x-frame-options']).toBe('DENY');
   });
 });
+
+describe('which sites may call the API from a browser', () => {
+  it('allows the shop itself (FRONTEND_URL)', async () => {
+    const res = await api.get('/settings').set('Origin', 'http://127.0.0.1:9');
+    expect(res.status).toBe(200);
+    expect(res.headers['access-control-allow-origin']).toBe('http://127.0.0.1:9');
+  });
+
+  it('refuses any other hosted site, including other *.vercel.app or *.onrender.com apps', async () => {
+    for (const origin of ['https://someone-else.vercel.app', 'https://evil.onrender.com', 'https://evil.example']) {
+      expect((await api.get('/settings').set('Origin', origin)).status).toBe(403);
+    }
+  });
+});
