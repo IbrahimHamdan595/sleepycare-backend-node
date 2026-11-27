@@ -1,0 +1,49 @@
+# Render Blueprint: the SleepyCare API and its Postgres database.
+# Create it in the Render dashboard (New > Blueprint > this repo). Render asks
+# for every value marked `sync: false`; never write secret values in this file.
+services:
+  - type: web
+    name: sleepycare-backend
+    runtime: node
+    plan: 0.5c-512mb # Starter: $7/month, always on
+    region: frankfurt # the closest Render region to Lebanon
+    branch: main
+    # Dev dependencies are needed to build (TypeScript, Prisma CLI) and for the
+    # one-off scripts run from the Render Shell (seed:admin, db:import-mongo).
+    buildCommand: npm ci --include=dev && npm run build
+    preDeployCommand: npx prisma migrate deploy
+    startCommand: npm start
+    healthCheckPath: /settings
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: NODE_ENV
+        value: production # also makes the R2 settings below required
+      - key: DATABASE_URL
+        fromDatabase:
+          name: sleepycare-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: FRONTEND_URL
+        sync: false # the shop's address, e.g. https://sleepycare-frontend.<your-subdomain>.workers.dev
+      - key: INTERNAL_API_SECRET
+        sync: false # the same value as the frontend's INTERNAL_API_SECRET
+      - key: R2_ENDPOINT_URL
+        sync: false
+      - key: R2_ACCESS_KEY_ID
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false
+      - key: R2_BUCKET_NAME
+        sync: false
+      - key: R2_PUBLIC_URL
+        sync: false
+
+databases:
+  - name: sleepycare-db
+    plan: 0.1c-256mb # Basic: $6/month + $0.30 per GB of storage
+    region: frankfurt # must match the web service
+    databaseName: sleepycare
+    postgresMajorVersion: "17"
+    ipAllowList: [] # only Render services can connect; run scripts from the Render Shell

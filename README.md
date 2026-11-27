@@ -60,5 +60,15 @@ TEST_DATABASE_URL=postgresql://USER:PASSWORD@localhost:5432/sleepycare_test npm 
 
 ## Deploying
 
-Build command: `npm install && npm run build && npm run db:deploy`
-Start command: `npm start`
+`render.yaml` describes the API and its Postgres database on Render (Starter
+web service and Basic database, Frankfurt). In the Render dashboard choose
+New > Blueprint, pick this repository, and fill in the values Render asks for:
+`FRONTEND_URL` (the shop's address), `INTERNAL_API_SECRET` (same value as the
+frontend) and the five `R2_*` settings. `NODE_ENV=production` makes the R2
+settings required. Migrations run before each deploy.
+
+The database only accepts connections from Render, so one-off scripts run in
+the service's Shell tab:
+
+- first admin: `ADMIN_EMAIL=... ADMIN_PASSWORD=... npm run seed:admin`
+- data from MongoDB: `MONGODB_URI=... npm run db:import-mongo -- --dry-run`, then without `--dry-run`
