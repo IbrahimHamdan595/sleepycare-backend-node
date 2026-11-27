@@ -18,6 +18,22 @@ beforeAll(async () => {
 
 afterAll(() => disconnect());
 
+describe('successful sign-ins', () => {
+  it('do not use up the limit, so people sharing one address are not locked out', async () => {
+    const { prisma } = await import('../src/database');
+    const { getPasswordHash } = await import('../src/utils/security');
+    const email = `shared-${Date.now()}@test.dev`;
+    await prisma.user.create({ data: { name: 'Shared', email, passwordHash: await getPasswordHash('right-pass') } });
+    // A different address from the test below, through the trusted proxy header.
+    const login = (password: string) =>
+      api.post('/auth/login').set('X-Forwarded-For', '203.0.113.7').type('form').send({ username: email, password });
+
+    for (let i = 0; i < 5; i++) expect((await login('right-pass')).status).toBe(200);
+    for (let i = 0; i < 3; i++) expect((await login('wrong-pass')).status).toBe(400);
+    expect((await login('wrong-pass')).status).toBe(429);
+  });
+});
+
 describe('login attempts', () => {
   it('are limited per address, with a readable message', async () => {
     const attempt = () =>

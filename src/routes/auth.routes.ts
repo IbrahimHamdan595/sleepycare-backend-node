@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { validate } from '../middleware/validate.middleware';
 import { getCurrentUser } from '../middleware/auth.middleware';
-import { authLimiter } from '../middleware/rate-limit';
+import { authLimiter, loginLimiter } from '../middleware/rate-limit';
 import {
   userCreateSchema,
   loginFormSchema,
@@ -35,7 +35,7 @@ router.post('/register', authLimiter, validate(userCreateSchema), async (req: Re
 });
 
 // POST /auth/login (expects form data with username and password)
-router.post('/login', authLimiter, validate(loginFormSchema), async (req: Request, res: Response) => {
+router.post('/login', loginLimiter, validate(loginFormSchema), async (req: Request, res: Response) => {
   try {
     const { username, password } = req.body; // username is actually email
     const user = await authenticateUser(username, password);

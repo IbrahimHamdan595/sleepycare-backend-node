@@ -13,3 +13,16 @@ export const authLimiter = rateLimit({
   legacyHeaders: false,
   message: { detail: 'Too many attempts. Please wait a few minutes and try again.' },
 });
+
+/**
+ * Sign-in only counts failed attempts: many shoppers can share one address
+ * (mobile networks), and their successful sign-ins must not lock each other out.
+ */
+export const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: config.authRateLimitMax,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  skipSuccessfulRequests: true,
+  message: { detail: 'Too many attempts. Please wait a few minutes and try again.' },
+});
