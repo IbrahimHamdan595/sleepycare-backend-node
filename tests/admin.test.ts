@@ -34,6 +34,21 @@ describe('admin partners', () => {
     expect(renamed.body).toMatchObject({ name: 'Pharmacie Centrale Hamra', icon: created.body.icon });
   });
 
+  it('accepts a logo sent as text that is larger than 1 MB', async () => {
+    const auth = { Authorization: `Bearer ${await adminToken()}` };
+    const logo = 'data:image/png;base64,' + 'A'.repeat(1.5 * 1024 * 1024);
+    const res = await api.post('/admin/partners').set(auth).field('name', 'Big Logo').field('icon_base64', logo);
+    expect(res.status).toBe(201);
+  });
+
+  it('refuses a logo over 5 MB with the same message as a file upload', async () => {
+    const auth = { Authorization: `Bearer ${await adminToken()}` };
+    const logo = 'data:image/png;base64,' + 'A'.repeat(7.5 * 1024 * 1024);
+    const res = await api.post('/admin/partners').set(auth).field('name', 'Huge Logo').field('icon_base64', logo);
+    expect(res.status).toBe(413);
+    expect(res.body).toEqual({ detail: 'Images can be at most 5 MB' });
+  });
+
   it('needs a name and an icon', async () => {
     const auth = { Authorization: `Bearer ${await adminToken()}` };
     expect((await api.post('/admin/partners').set(auth).field('name', 'No icon')).status).toBe(422);

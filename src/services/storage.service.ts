@@ -133,8 +133,16 @@ class R2StorageClient {
 
 export const r2Client = new R2StorageClient();
 
-/** Multer for admin image fields: in memory, at most 5 MB. */
-export const imageUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+
+/**
+ * Multer for admin image fields: in memory, at most 5 MB, whether the image
+ * comes as a file or as data: text (base64 is 4/3 the size, plus the prefix).
+ */
+export const imageUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: MAX_IMAGE_BYTES, fieldSize: Math.ceil((MAX_IMAGE_BYTES * 4) / 3) + 1024 },
+});
 
 // Raster images only: an SVG can carry scripts.
 const IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif', 'image/avif'];

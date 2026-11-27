@@ -26,7 +26,9 @@ export function errorHandler(
 
   // Upload problems (multer): a file over the size limit, an unexpected field.
   if (err.name === 'MulterError') {
-    const tooLarge = (err as { code?: string }).code === 'LIMIT_FILE_SIZE';
+    // An uploaded file, or an image sent as data: text, over the limit.
+    const code = (err as { code?: string }).code;
+    const tooLarge = code === 'LIMIT_FILE_SIZE' || code === 'LIMIT_FIELD_VALUE';
     return res.status(tooLarge ? 413 : 400).json({ detail: tooLarge ? 'Images can be at most 5 MB' : err.message });
   }
 
